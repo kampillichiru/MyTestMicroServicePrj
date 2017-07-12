@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: demo-refreshable-config-client
+  cloud:
+    config:
+      uri: http://localhost:8100
+  profiles:
+    active: development

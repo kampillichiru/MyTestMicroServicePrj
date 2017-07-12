@@ -1,0 +1,12 @@
+# ribbon.eureka.enabled: false
+zuul:
+  ignoredServices: "*"
+  routes:
+    zuulDemo1:
+      path: /zuul2/**
+# serviceId as registed with Eureka. Enabled and used when ribbon.eureka.enabled is true.
+      serviceId: demo-zuul-api1
+# zuul.routes.<the route>.url used when ribbon.eureka.enabled is false, serviceId is disabled.
+#      url: http://localhost:8600/
+# stripPrefix set to true if context path is set to /
+      stripPrefix: true
