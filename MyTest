@@ -1,0 +1,2 @@
+    // Combined schedule for 21:00 and every 15 minutes from 21:15 to 23:30
+    @Scheduled(cron = {"0 0 21 * * *", "0 15,30,45 21 * * *", "0 0,15,30,45 22-23 * * *"})
