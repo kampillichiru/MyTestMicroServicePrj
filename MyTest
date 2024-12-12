@@ -1,4 +1,38 @@
 <dependency>
+    <groupId>jakarta.xml.bind</groupId>
+    <artifactId>jakarta.xml.bind-api</artifactId>
+    <version>3.0.1</version>
+</dependency>
+<dependency>
+    <groupId>org.glassfish.jaxb</groupId>
+    <artifactId>jaxb-runtime</artifactId>
+    <version>3.0.1</version>
+</dependency>
+
+
+   public static boolean validateXml(String xml, String xsdPath) {
+        try {
+            SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+            Schema schema = factory.newSchema(new StreamSource(xsdPath));
+            Validator validator = schema.newValidator();
+            Source xmlSource = new StreamSource(new StringReader(xml));
+            validator.validate(xmlSource);
+            return true;
+        } catch (Exception e) {
+            System.out.println("Validation failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+
+
+
+
+
+
+
+
+<dependency>
     <groupId>com.fasterxml.jackson.dataformat</groupId>
     <artifactId>jackson-dataformat-xml</artifactId>
     <version>2.15.0</version>
