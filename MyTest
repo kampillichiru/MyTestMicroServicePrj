@@ -8,80 +8,43 @@
     <artifactId>jaxb-runtime</artifactId>
     <version>3.0.1</version>
 </dependency>
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import org.springframework.core.io.ClassPathResource;
 
+import javax.xml.XMLConstants;
+import javax.xml.transform.stream.StreamSource;
+import javax.xml.validation.Schema;
+import javax.xml.validation.SchemaFactory;
+import java.io.InputStream;
+import java.io.StringReader;
 
-   public static boolean validateXml(String xml, String xsdPath) {
-        try {
+public class XmlProcessor {
+
+    private final XmlMapper xmlMapper;
+    private final Schema schema;
+
+    public XmlProcessor(String xsdPath) throws Exception {
+        this.xmlMapper = new XmlMapper();
+
+        // Load XSD schema during initialization for reuse
+        try (InputStream xsdStream = new ClassPathResource(xsdPath).getInputStream()) {
             SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
-            Schema schema = factory.newSchema(new StreamSource(xsdPath));
-            Validator validator = schema.newValidator();
-            Source xmlSource = new StreamSource(new StringReader(xml));
-            validator.validate(xmlSource);
-            return true;
-        } catch (Exception e) {
-            System.out.println("Validation failed: " + e.getMessage());
-            return false;
+            this.schema = factory.newSchema(new StreamSource(xsdStream));
         }
     }
 
+    public <T> T processXml(String xml, Class<T> targetType) throws Exception {
+        // Step 1: Validate XML against the schema
+        validateXml(xml);
 
-
-
-
-
-
-
-
-<dependency>
-    <groupId>com.fasterxml.jackson.dataformat</groupId>
-    <artifactId>jackson-dataformat-xml</artifactId>
-    <version>2.15.0</version>
-</dependency>
-
-
-
-import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
-
-public class Person {
-    @JacksonXmlProperty(localName = "name")
-    private String name;
-
-    @JacksonXmlProperty(localName = "age")
-    private int age;
-
-    // Getters and setters
-    public String getName() {
-        return name;
+        // Step 2: Deserialize XML to Java Object
+        return xmlMapper.readValue(xml, targetType);
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public int getAge() {
-        return age;
-    }
-
-    public void setAge(int age) {
-        this.age = age;
-    }
-
-    @Override
-    public String toString() {
-        return "Person{name='" + name + "', age=" + age + '}';
-    }
-}
-
-
-import com.fasterxml.jackson.dataformat.xml.XmlMapper;
-
-public class XmlToJava {
-    public static void main(String[] args) throws Exception {
-        String xml = "<person><name>John Doe</name><age>30</age></person>";
-
-        XmlMapper xmlMapper = new XmlMapper();
-        Person person = xmlMapper.readValue(xml, Person.class);
-
-        System.out.println(person);
+    private void validateXml(String xml) throws Exception {
+        try (var reader = new StringReader(xml)) {
+            var validator = schema.newValidator();
+            validator.validate(new StreamSource(reader));
+        }
     }
 }
