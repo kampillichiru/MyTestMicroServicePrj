@@ -1,50 +1,88 @@
-<dependency>
-    <groupId>jakarta.xml.bind</groupId>
-    <artifactId>jakarta.xml.bind-api</artifactId>
-    <version>3.0.1</version>
-</dependency>
-<dependency>
-    <groupId>org.glassfish.jaxb</groupId>
-    <artifactId>jaxb-runtime</artifactId>
-    <version>3.0.1</version>
-</dependency>
-import com.fasterxml.jackson.dataformat.xml.XmlMapper;
-import org.springframework.core.io.ClassPathResource;
 
-import javax.xml.XMLConstants;
-import javax.xml.transform.stream.StreamSource;
-import javax.xml.validation.Schema;
-import javax.xml.validation.SchemaFactory;
-import java.io.InputStream;
-import java.io.StringReader;
+@Configuration
+public class ThreadPoolConfig {
 
-public class XmlProcessor {
+    @Bean
+    public Executor taskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(56); // Number of logical CPUs
+        executor.setMaxPoolSize(112); // Double the core pool size for burst loads
+        executor.setQueueCapacity(100000); // Capacity for incoming tasks
+        executor.setThreadNamePrefix("AggregatorThread-");
+        executor.initialize();
+        return executor;
+    }
+}
 
-    private final XmlMapper xmlMapper;
-    private final Schema schema;
 
-    public XmlProcessor(String xsdPath) throws Exception {
-        this.xmlMapper = new XmlMapper();
+@Service
+public class AggregatorService {
 
-        // Load XSD schema during initialization for reuse
-        try (InputStream xsdStream = new ClassPathResource(xsdPath).getInputStream()) {
-            SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
-            this.schema = factory.newSchema(new StreamSource(xsdStream));
+    private final BlockingQueue<String> dataQueue = new LinkedBlockingQueue<>(100000); // Thread-safe queue
+    private final Executor taskExecutor;
+
+    @Autowired
+    public AggregatorService(Executor taskExecutor) {
+        this.taskExecutor = taskExecutor;
+    }
+
+    public void startListener(int port) {
+        new Thread(() -> {
+            try (ServerSocket serverSocket = new ServerSocket(port)) {
+                while (true) {
+                    Socket socket = serverSocket.accept();
+                    String data = readData(socket); // Implement readData to parse incoming packets
+                    dataQueue.offer(data); // Add to queue
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }, "FlowListener").start();
+    }
+
+    public void processQueue() {
+        for (int i = 0; i < 10; i++) {
+            taskExecutor.execute(this::processRecords);
         }
     }
 
-    public <T> T processXml(String xml, Class<T> targetType) throws Exception {
-        // Step 1: Validate XML against the schema
-        validateXml(xml);
-
-        // Step 2: Deserialize XML to Java Object
-        return xmlMapper.readValue(xml, targetType);
+    private void processRecords() {
+        while (true) {
+            try {
+                String record = dataQueue.take(); // Retrieve and remove head of the queue
+                processRecord(record); // Implement logic for record processing
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
     }
 
-    private void validateXml(String xml) throws Exception {
-        try (var reader = new StringReader(xml)) {
-            var validator = schema.newValidator();
-            validator.validate(new StreamSource(reader));
-        }
+    private String readData(Socket socket) {
+        // Implement the logic to read data from the socket
+        return "dummyData";
+    }
+
+    private void processRecord(String record) {
+        // Business logic for processing each record
+        System.out.println(Thread.currentThread().getName() + " processing: " + record);
+    }
+}
+
+
+@SpringBootApplication
+public class AggregatorApplication {
+
+    @Autowired
+    private AggregatorService aggregatorService;
+
+    public static void main(String[] args) {
+        SpringApplication.run(AggregatorApplication.class, args);
+    }
+
+    @PostConstruct
+    public void startAggregation() {
+        aggregatorService.startListener(8080); // Start listening on port 8080
+        aggregatorService.processQueue();      // Start parallel processing
     }
 }
