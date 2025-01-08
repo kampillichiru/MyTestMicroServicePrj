@@ -1,11 +1,9 @@
-import java.io.IOException;
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
 import java.io.InputStream;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.util.HashMap;
-import java.util.Map;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class RestApiClient {
 
@@ -24,38 +22,57 @@ public class RestApiClient {
         makeApiRequest(apiEndpoint, token);
     }
 
-    private static String getOAuthToken(String tokenEndpoint, String clientId, String clientSecret) throws IOException, InterruptedException {
-        String requestBody = "grant_type=client_credentials&client_id=" + clientId + "&client_secret=" + clientSecret;
+    private static String getOAuthToken(String tokenEndpoint, String clientId, String clientSecret) throws Exception {
+        String params = "grant_type=client_credentials&client_id=" + clientId + "&client_secret=" + clientSecret;
 
-        HttpClient client = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(tokenEndpoint))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
+        // Set up connection
+        URL url = new URL(tokenEndpoint);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+        connection.setDoOutput(true);
 
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() == 200) {
-            return parseJson(response.body(), "access_token");
-        } else {
-            throw new RuntimeException("Failed to get token: " + response.body());
+        // Send request
+        try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
+            outputStream.writeBytes(params);
+            outputStream.flush();
+        }
+
+        // Read response
+        String response = readResponse(connection.getInputStream());
+        connection.disconnect();
+
+        // Extract token from JSON response
+        return parseJson(response, "access_token");
+    }
+
+    private static void makeApiRequest(String apiEndpoint, String token) throws Exception {
+        // Set up connection
+        URL url = new URL(apiEndpoint);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("GET");
+        connection.setRequestProperty("Authorization", "Bearer " + token);
+
+        // Read response
+        String response = readResponse(connection.getInputStream());
+        connection.disconnect();
+
+        System.out.println("API Response: " + response);
+    }
+
+    private static String readResponse(InputStream inputStream) throws Exception {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
+            }
+            return response.toString();
         }
     }
 
-    private static void makeApiRequest(String apiEndpoint, String token) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(apiEndpoint))
-                .header("Authorization", "Bearer " + token)
-                .GET()
-                .build();
-
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        System.out.println("API Response: " + response.body());
-    }
-
     private static String parseJson(String json, String key) {
-        // Very simple manual JSON parsing
+        // Simple manual JSON parsing
         String searchKey = "\"" + key + "\":\"";
         int startIndex = json.indexOf(searchKey) + searchKey.length();
         int endIndex = json.indexOf("\"", startIndex);
