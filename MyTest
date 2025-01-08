@@ -1,63 +1,70 @@
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
-import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-public class RestApiClient {
+public class RestApiPostClient {
 
-    public static void main(String[] args) throws Exception {
-        // Replace with your OAuth token endpoint
-        String tokenEndpoint = "https://your-auth-server.com/oauth/token";
-        String clientId = "your-client-id";
-        String clientSecret = "your-client-secret";
+    public static void main(String[] args) {
+        try {
+            // Example endpoints and credentials
+            String tokenEndpoint = "https://your-auth-server.com/oauth/token";
+            String clientId = "your-client-id";
+            String clientSecret = "your-client-secret";
 
-        // Step 1: Get OAuth token
-        String token = getOAuthToken(tokenEndpoint, clientId, clientSecret);
-        System.out.println("OAuth Token: " + token);
+            // Step 1: Get OAuth token
+            String token = getOAuthToken(tokenEndpoint, clientId, clientSecret);
+            System.out.println("OAuth Token: " + token);
 
-        // Step 2: Call the REST API
-        String apiEndpoint = "https://your-api.com/data";
-        makeApiRequest(apiEndpoint, token);
+            // Step 2: Call REST API with POST method
+            String apiEndpoint = "https://your-api.com/resource";
+            String requestBody = "{\"name\":\"example\",\"description\":\"test data\"}";
+            makePostApiRequest(apiEndpoint, token, requestBody);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private static String getOAuthToken(String tokenEndpoint, String clientId, String clientSecret) throws Exception {
         String params = "grant_type=client_credentials&client_id=" + clientId + "&client_secret=" + clientSecret;
 
-        // Set up connection
-        URL url = new URL(tokenEndpoint);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("POST");
+        HttpURLConnection connection = createConnection(tokenEndpoint, "POST");
         connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-        connection.setDoOutput(true);
 
-        // Send request
         try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
             outputStream.writeBytes(params);
             outputStream.flush();
         }
 
-        // Read response
-        String response = readResponse(connection.getInputStream());
-        connection.disconnect();
-
-        // Extract token from JSON response
-        return parseJson(response, "access_token");
+        return parseJson(readResponse(connection.getInputStream()), "access_token");
     }
 
-    private static void makeApiRequest(String apiEndpoint, String token) throws Exception {
-        // Set up connection
-        URL url = new URL(apiEndpoint);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("GET");
+    private static void makePostApiRequest(String apiEndpoint, String token, String requestBody) throws Exception {
+        HttpURLConnection connection = createConnection(apiEndpoint, "POST");
         connection.setRequestProperty("Authorization", "Bearer " + token);
+        connection.setRequestProperty("Content-Type", "application/json");
 
-        // Read response
+        // Send POST body
+        try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
+            outputStream.writeBytes(requestBody);
+            outputStream.flush();
+        }
+
+        // Read and print the response
         String response = readResponse(connection.getInputStream());
-        connection.disconnect();
-
         System.out.println("API Response: " + response);
+    }
+
+    private static HttpURLConnection createConnection(String urlString, String method) throws Exception {
+        URL url = new URL(urlString);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod(method);
+        connection.setDoOutput(true); // Important for POST requests
+        connection.setConnectTimeout(5000); // 5 seconds
+        connection.setReadTimeout(5000);    // 5 seconds
+        return connection;
     }
 
     private static String readResponse(InputStream inputStream) throws Exception {
@@ -72,7 +79,6 @@ public class RestApiClient {
     }
 
     private static String parseJson(String json, String key) {
-        // Simple manual JSON parsing
         String searchKey = "\"" + key + "\":\"";
         int startIndex = json.indexOf(searchKey) + searchKey.length();
         int endIndex = json.indexOf("\"", startIndex);
