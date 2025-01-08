@@ -1,88 +1,64 @@
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.HashMap;
+import java.util.Map;
 
-@Configuration
-public class ThreadPoolConfig {
+public class RestApiClient {
 
-    @Bean
-    public Executor taskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(56); // Number of logical CPUs
-        executor.setMaxPoolSize(112); // Double the core pool size for burst loads
-        executor.setQueueCapacity(100000); // Capacity for incoming tasks
-        executor.setThreadNamePrefix("AggregatorThread-");
-        executor.initialize();
-        return executor;
-    }
-}
+    public static void main(String[] args) throws Exception {
+        // Replace with your OAuth token endpoint
+        String tokenEndpoint = "https://your-auth-server.com/oauth/token";
+        String clientId = "your-client-id";
+        String clientSecret = "your-client-secret";
 
+        // Step 1: Get OAuth token
+        String token = getOAuthToken(tokenEndpoint, clientId, clientSecret);
+        System.out.println("OAuth Token: " + token);
 
-@Service
-public class AggregatorService {
-
-    private final BlockingQueue<String> dataQueue = new LinkedBlockingQueue<>(100000); // Thread-safe queue
-    private final Executor taskExecutor;
-
-    @Autowired
-    public AggregatorService(Executor taskExecutor) {
-        this.taskExecutor = taskExecutor;
+        // Step 2: Call the REST API
+        String apiEndpoint = "https://your-api.com/data";
+        makeApiRequest(apiEndpoint, token);
     }
 
-    public void startListener(int port) {
-        new Thread(() -> {
-            try (ServerSocket serverSocket = new ServerSocket(port)) {
-                while (true) {
-                    Socket socket = serverSocket.accept();
-                    String data = readData(socket); // Implement readData to parse incoming packets
-                    dataQueue.offer(data); // Add to queue
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }, "FlowListener").start();
-    }
+    private static String getOAuthToken(String tokenEndpoint, String clientId, String clientSecret) throws IOException, InterruptedException {
+        String requestBody = "grant_type=client_credentials&client_id=" + clientId + "&client_secret=" + clientSecret;
 
-    public void processQueue() {
-        for (int i = 0; i < 10; i++) {
-            taskExecutor.execute(this::processRecords);
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(tokenEndpoint))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() == 200) {
+            return parseJson(response.body(), "access_token");
+        } else {
+            throw new RuntimeException("Failed to get token: " + response.body());
         }
     }
 
-    private void processRecords() {
-        while (true) {
-            try {
-                String record = dataQueue.take(); // Retrieve and remove head of the queue
-                processRecord(record); // Implement logic for record processing
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-        }
+    private static void makeApiRequest(String apiEndpoint, String token) throws IOException, InterruptedException {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(apiEndpoint))
+                .header("Authorization", "Bearer " + token)
+                .GET()
+                .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        System.out.println("API Response: " + response.body());
     }
 
-    private String readData(Socket socket) {
-        // Implement the logic to read data from the socket
-        return "dummyData";
-    }
-
-    private void processRecord(String record) {
-        // Business logic for processing each record
-        System.out.println(Thread.currentThread().getName() + " processing: " + record);
-    }
-}
-
-
-@SpringBootApplication
-public class AggregatorApplication {
-
-    @Autowired
-    private AggregatorService aggregatorService;
-
-    public static void main(String[] args) {
-        SpringApplication.run(AggregatorApplication.class, args);
-    }
-
-    @PostConstruct
-    public void startAggregation() {
-        aggregatorService.startListener(8080); // Start listening on port 8080
-        aggregatorService.processQueue();      // Start parallel processing
+    private static String parseJson(String json, String key) {
+        // Very simple manual JSON parsing
+        String searchKey = "\"" + key + "\":\"";
+        int startIndex = json.indexOf(searchKey) + searchKey.length();
+        int endIndex = json.indexOf("\"", startIndex);
+        return json.substring(startIndex, endIndex);
     }
 }
