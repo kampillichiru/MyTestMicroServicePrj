@@ -4,6 +4,11 @@
         <version>5.7.1</version>
     </dependency>
 
+    <dependency>
+        <groupId>org.projectreactor</groupId>
+        <artifactId>reactor-core</artifactId>
+    </dependency>
+
 
 import com.opencsv.bean.CsvBindByName;
 import lombok.Data;
