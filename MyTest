@@ -1,30 +1,94 @@
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
+ <dependency>
+        <groupId>com.opencsv</groupId>
+        <artifactId>opencsv</artifactId>
+        <version>5.7.1</version>
+    </dependency>
 
-import javax.annotation.PostConstruct;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
+
+import com.opencsv.bean.CsvBindByName;
+import lombok.Data;
+
+@Data
+public class Person {
+
+    @CsvBindByName(column = "name")
+    private String name;
+
+    @CsvBindByName(column = "age")
+    private int age;
+
+    @CsvBindByName(column = "city")
+    private String city;
+}
+
+
+
+import com.opencsv.bean.CsvToBeanBuilder;
+import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
+
+import java.io.FileReader;
+import java.io.Reader;
+import java.nio.file.*;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
-public class UdpListenerService {
+public class FileService {
 
-    @PostConstruct
-    public void init() {
-        startUdpListener(9876); // Automatically start on initialization
+    private final List<Person> persons = new CopyOnWriteArrayList<>();
+    private final Sinks.Many<List<Person>> sink = Sinks.many().replay().latest();
+    private final Path filePath = Paths.get("data.csv");
+
+    public FileService() {
+        loadFile();
+        watchFileChanges();
     }
 
-    @Async
-    public void startUdpListener(int port) {
-        try (DatagramSocket socket = new DatagramSocket(port)) {
-            System.out.println("UDP Listener started on port " + port);
-            byte[] buffer = new byte[1024];
-            while (true) {
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                socket.receive(packet); // Blocking call to receive data
+    public Flux<List<Person>> getReactivePersons() {
+        return sink.asFlux();
+    }
 
-                String receivedData = new String(packet.getData(), 0, packet.getLength());
-                System.out.println("Received UDP packet: " + receivedData);
-            }
+    private void loadFile() {
+        try (Reader reader = new FileReader(filePath.toFile())) {
+            List<Person> loadedPersons = new CsvToBeanBuilder<Person>(reader)
+                    .withType(Person.class)
+                    .build()
+                    .parse();
+
+            persons.clear();
+            persons.addAll(loadedPersons);
+            sink.tryEmitNext(persons); // Notify subscribers of updated data
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void watchFileChanges() {
+        try {
+            WatchService watchService = FileSystems.getDefault().newWatchService();
+            filePath.getParent().register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
+
+            Thread watcherThread = new Thread(() -> {
+                while (true) {
+                    try {
+                        WatchKey key = watchService.take();
+                        for (WatchEvent<?> event : key.pollEvents()) {
+                            if (event.context().toString().equals(filePath.getFileName().toString())) {
+                                loadFile();
+                                System.out.println("File updated. Data reloaded.");
+                            }
+                        }
+                        key.reset();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+
+            watcherThread.setDaemon(true);
+            watcherThread.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
