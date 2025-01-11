@@ -1,87 +1,31 @@
-import java.io.BufferedReader;
-import java.io.DataOutputStream;
-import java.io.InputStreamReader;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-public class RestApiPostClient {
+import java.util.concurrent.Executor;
 
-    public static void main(String[] args) {
-        try {
-            // Example endpoints and credentials
-            String tokenEndpoint = "https://your-auth-server.com/oauth/token";
-            String clientId = "your-client-id";
-            String clientSecret = "your-client-secret";
-
-            // Step 1: Get OAuth token
-            String token = getOAuthToken(tokenEndpoint, clientId, clientSecret);
-            System.out.println("OAuth Token: " + token);
-
-            // Step 2: Call REST API with POST method
-            String apiEndpoint = "https://your-api.com/resource";
-            String requestBody = "{\"name\":\"example\",\"description\":\"test data\"}";
-            makePostApiRequest(apiEndpoint, token, requestBody);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+@Configuration
+public class ThreadPoolConfig {
+    int corePoolSize = Runtime.getRuntime().availableProcessors(); // Dynamic based on CPUs
+    int maxPoolSize = corePoolSize * 2; // Allow double threads for scaling
+    @Bean
+    public Executor taskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(corePoolSize);
+        executor.setMaxPoolSize(maxPoolSize);
+        executor.setQueueCapacity(calculateQueueCapacity());
+        executor.setThreadNamePrefix("AggregatorThread-");
+        executor.initialize();
+        return executor;
     }
 
-    private static String getOAuthToken(String tokenEndpoint, String clientId, String clientSecret) throws Exception {
-        String params = "grant_type=client_credentials&client_id=" + clientId + "&client_secret=" + clientSecret;
+    private int calculateQueueCapacity() {
+        long totalMemory = Runtime.getRuntime().maxMemory();
+        long availableMemoryForQueue = (long) (totalMemory * 0.7); // Reserve 30% memory
+        long memoryPerTask = 1024 * 1024; // 1MB per task
+        int memoryBasedQueueCapacity = (int) (availableMemoryForQueue / memoryPerTask);
 
-        HttpURLConnection connection = createConnection(tokenEndpoint, "POST");
-        connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-
-        try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
-            outputStream.writeBytes(params);
-            outputStream.flush();
-        }
-
-        return parseJson(readResponse(connection.getInputStream()), "access_token");
-    }
-
-    private static void makePostApiRequest(String apiEndpoint, String token, String requestBody) throws Exception {
-        HttpURLConnection connection = createConnection(apiEndpoint, "POST");
-        connection.setRequestProperty("Authorization", "Bearer " + token);
-        connection.setRequestProperty("Content-Type", "application/json");
-
-        // Send POST body
-        try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
-            outputStream.writeBytes(requestBody);
-            outputStream.flush();
-        }
-
-        // Read and print the response
-        String response = readResponse(connection.getInputStream());
-        System.out.println("API Response: " + response);
-    }
-
-    private static HttpURLConnection createConnection(String urlString, String method) throws Exception {
-        URL url = new URL(urlString);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod(method);
-        connection.setDoOutput(true); // Important for POST requests
-        connection.setConnectTimeout(5000); // 5 seconds
-        connection.setReadTimeout(5000);    // 5 seconds
-        return connection;
-    }
-
-    private static String readResponse(InputStream inputStream) throws Exception {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                response.append(line);
-            }
-            return response.toString();
-        }
-    }
-
-    private static String parseJson(String json, String key) {
-        String searchKey = "\"" + key + "\":\"";
-        int startIndex = json.indexOf(searchKey) + searchKey.length();
-        int endIndex = json.indexOf("\"", startIndex);
-        return json.substring(startIndex, endIndex);
+        int cpuBasedCapacity = Runtime.getRuntime().availableProcessors() * 10; // CPU-based scaling
+        return Math.min(memoryBasedQueueCapacity, cpuBasedCapacity);
     }
 }
