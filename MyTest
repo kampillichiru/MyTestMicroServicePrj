@@ -1,4 +1,4 @@
-import org.ff4j.web.embedded.ConsoleServlet;
+import org.ff4j.web.FF4jDispatcherServlet;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -7,9 +7,10 @@ import org.springframework.context.annotation.Configuration;
 public class FF4jWebConfig {
 
     @Bean
-    public ServletRegistrationBean<ConsoleServlet> ff4jConsoleServlet() {
-        ServletRegistrationBean<ConsoleServlet> servletBean =
-                new ServletRegistrationBean<>(new ConsoleServlet(), "/ff4j-console/*");
+    public ServletRegistrationBean<FF4jDispatcherServlet> ff4jDispatcherServlet() {
+        ServletRegistrationBean<FF4jDispatcherServlet> servletBean =
+                new ServletRegistrationBean<>(new FF4jDispatcherServlet(), "/ff4j-console/*");
+        servletBean.setName("FF4jConsole");
         return servletBean;
     }
 }
