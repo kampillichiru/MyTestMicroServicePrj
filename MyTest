@@ -1,99 +1,15 @@
- <dependency>
-        <groupId>com.opencsv</groupId>
-        <artifactId>opencsv</artifactId>
-        <version>5.7.1</version>
-    </dependency>
+import org.ff4j.web.embedded.ConsoleServlet;
+import org.springframework.boot.web.servlet.ServletRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
-    <dependency>
-        <groupId>org.projectreactor</groupId>
-        <artifactId>reactor-core</artifactId>
-    </dependency>
+@Configuration
+public class FF4jWebConfig {
 
-
-import com.opencsv.bean.CsvBindByName;
-import lombok.Data;
-
-public class Person {
-
-    @CsvBindByPosition(position = 0)
-    private String name;
-
-    @CsvBindByPosition(position = 1)
-    private int age;
-
-    @CsvBindByPosition(position = 2)
-    private String city;
-}
-
-
-import com.opencsv.bean.CsvToBeanBuilder;
-import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Sinks;
-
-import java.io.FileReader;
-import java.io.Reader;
-import java.nio.file.*;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-
-@Service
-public class FileService {
-
-    private final List<Person> persons = new CopyOnWriteArrayList<>();
-    private final Sinks.Many<List<Person>> sink = Sinks.many().replay().latest();
-    private final Path filePath = Paths.get("data.csv");
-
-    public FileService() {
-        loadFile();
-        watchFileChanges();
-    }
-
-    public Flux<List<Person>> getReactivePersons() {
-        return sink.asFlux();
-    }
-
-    private void loadFile() {
-        try (Reader reader = new FileReader(filePath.toFile())) {
-            List<Person> loadedPersons = new CsvToBeanBuilder<Person>(reader)
-                    .withType(Person.class)
-                    .build()
-                    .parse();
-
-            persons.clear();
-            persons.addAll(loadedPersons);
-            sink.tryEmitNext(persons); // Notify subscribers of updated data
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void watchFileChanges() {
-        try {
-            WatchService watchService = FileSystems.getDefault().newWatchService();
-            filePath.getParent().register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
-
-            Thread watcherThread = new Thread(() -> {
-                while (true) {
-                    try {
-                        WatchKey key = watchService.take();
-                        for (WatchEvent<?> event : key.pollEvents()) {
-                            if (event.context().toString().equals(filePath.getFileName().toString())) {
-                                loadFile();
-                                System.out.println("File updated. Data reloaded.");
-                            }
-                        }
-                        key.reset();
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-            });
-
-            watcherThread.setDaemon(true);
-            watcherThread.start();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    @Bean
+    public ServletRegistrationBean<ConsoleServlet> ff4jConsoleServlet() {
+        ServletRegistrationBean<ConsoleServlet> servletBean =
+                new ServletRegistrationBean<>(new ConsoleServlet(), "/ff4j-console/*");
+        return servletBean;
     }
 }
