@@ -14,3 +14,16 @@ public class FF4jWebConfig {
         return servletBean;
     }
 }
+
+
+<dependency>
+    <groupId>org.ff4j</groupId>
+    <artifactId>ff4j-web</artifactId>
+    <version>1.8.11</version>
+    <exclusions>
+        <exclusion>
+            <groupId>javax.servlet</groupId>
+            <artifactId>javax.servlet-api</artifactId>
+        </exclusion>
+    </exclusions>
+</dependency>
