@@ -1,12 +1,3 @@
-ff4j:
-  web-console:
-    enabled: true
-    context-path: /my-service/api/ff4j-web-console
-  api:
-    enabled: true
-    context-path: /my-service/api/ff4j
-
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -14,6 +5,8 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+
+import static org.springframework.security.config.Customizer.withDefaults;
 
 @Configuration
 public class SecurityConfig {
@@ -29,18 +22,17 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain consoleSecurityFilterChain(HttpSecurity http) throws Exception {
         http
+            .securityMatcher("/ff4j-web-console/**") // Match the console path
             .authorizeHttpRequests(auth -> auth
-                // Protect the FF4j Console
-                .requestMatchers("/my-service/api/ff4j-web-console/**").hasRole("ADMIN")
-                // Protect the FF4j API
-                .requestMatchers("/my-service/api/ff4j/**").hasRole("ADMIN")
-                // Allow all other requests
-                .anyRequest().permitAll()
+                .anyRequest().hasRole("ADMIN") // Require ADMIN role for console
             )
-            .formLogin(withDefaults()) // Enable form-based login
-            .httpBasic(withDefaults()); // Enable basic authentication for APIs
+            .formLogin(form -> form
+                .loginPage("/login") // Optional: Specify a custom login page
+                .permitAll() // Allow access to the login page
+            )
+            .httpBasic(withDefaults()); // Enable basic auth as a fallback
 
         return http.build();
     }
