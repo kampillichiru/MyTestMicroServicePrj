@@ -1,29 +1,35 @@
-import org.ff4j.web.FF4jDispatcherServlet;
-import org.springframework.boot.web.servlet.ServletRegistrationBean;
+import org.ff4j.FF4j;
+import org.ff4j.store.FeatureStoreJdbc;
+import org.ff4j.store.PropertyStoreJdbc;
+import org.ff4j.store.EventRepositoryJdbc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import javax.sql.DataSource;
+
 @Configuration
-public class FF4jWebConfig {
+public class FF4jConfig {
 
     @Bean
-    public ServletRegistrationBean<FF4jDispatcherServlet> ff4jDispatcherServlet() {
-        ServletRegistrationBean<FF4jDispatcherServlet> servletBean =
-                new ServletRegistrationBean<>(new FF4jDispatcherServlet(), "/ff4j-console/*");
-        servletBean.setName("FF4jConsole");
-        return servletBean;
+    public FF4j ff4j(DataSource dataSource) {
+        FF4j ff4j = new FF4j();
+        ff4j.setFeatureStore(new FeatureStoreJdbc(dataSource));
+        ff4j.setPropertiesStore(new PropertyStoreJdbc(dataSource));
+        ff4j.setEventRepository(new EventRepositoryJdbc(dataSource));
+        ff4j.audit(true);
+        return ff4j;
     }
 }
 
 
-<dependency>
-    <groupId>org.ff4j</groupId>
-    <artifactId>ff4j-web</artifactId>
-    <version>1.8.11</version>
-    <exclusions>
-        <exclusion>
-            <groupId>javax.servlet</groupId>
-            <artifactId>javax.servlet-api</artifactId>
-        </exclusion>
-    </exclusions>
-</dependency>
+
+spring:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  datasource:
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
