@@ -1,3 +1,12 @@
+ff4j:
+  web-console:
+    enabled: true
+    context-path: /my-service/api/ff4j-web-console
+  api:
+    enabled: true
+    context-path: /my-service/api/ff4j
+
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -5,9 +14,6 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
-
-import static org.springframework.security.config.Customizer.withDefaults;
 
 @Configuration
 public class SecurityConfig {
@@ -26,9 +32,12 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(new AntPathRequestMatcher("/my-service/api/ff4j-web-console/**")).hasRole("ADMIN") // Secure FF4j Console
-                .requestMatchers(new AntPathRequestMatcher("/my-service/api/ff4j/**")).hasRole("ADMIN") // Secure FF4j API
-                .anyRequest().permitAll() // Allow other requests
+                // Protect the FF4j Console
+                .requestMatchers("/my-service/api/ff4j-web-console/**").hasRole("ADMIN")
+                // Protect the FF4j API
+                .requestMatchers("/my-service/api/ff4j/**").hasRole("ADMIN")
+                // Allow all other requests
+                .anyRequest().permitAll()
             )
             .formLogin(withDefaults()) // Enable form-based login
             .httpBasic(withDefaults()); // Enable basic authentication for APIs
