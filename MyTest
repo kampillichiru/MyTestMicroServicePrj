@@ -5,8 +5,7 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.util.matcher.MvcRequestMatcher;
-import org.springframework.web.servlet.handler.HandlerMappingIntrospector;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
@@ -24,12 +23,11 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, HandlerMappingIntrospector introspector) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth
-                // Use MvcRequestMatcher for MVC-based URLs
-                .requestMatchers(new MvcRequestMatcher(introspector, "/my-service/api/ff4j-web-console/**")).hasRole("ADMIN") // Secure FF4j Console
-                .requestMatchers(new MvcRequestMatcher(introspector, "/my-service/api/ff4j/**")).hasRole("ADMIN") // Secure FF4j API
+                .requestMatchers(new AntPathRequestMatcher("/my-service/api/ff4j-web-console/**")).hasRole("ADMIN") // Secure FF4j Console
+                .requestMatchers(new AntPathRequestMatcher("/my-service/api/ff4j/**")).hasRole("ADMIN") // Secure FF4j API
                 .anyRequest().permitAll() // Allow other requests
             )
             .formLogin(withDefaults()) // Enable form-based login
