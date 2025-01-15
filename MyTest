@@ -6,6 +6,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
+import static org.springframework.security.config.Customizer.withDefaults;
+
 @Configuration
 public class SecurityConfig {
 
@@ -26,9 +28,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .anyRequest().authenticated()
             )
-            .formLogin()
-            .and()
-            .httpBasic(); // Enable basic authentication for the console
+            .formLogin(withDefaults()) // Modern way to configure form-based login
+            .httpBasic(withDefaults()); // Keep basic auth enabled for console access if needed
 
         return http.build();
     }
@@ -38,7 +39,7 @@ public class SecurityConfig {
         http
             .securityMatcher("/api/ff4j/**")
             .authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll()); // Leave API unprotected for now
+                .anyRequest().permitAll()); // Allow open access to the API
 
         return http.build();
     }
