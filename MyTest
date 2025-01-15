@@ -22,24 +22,15 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain consoleSecurity(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .securityMatcher("/ff4j-web-console/**")
             .authorizeHttpRequests(auth -> auth
-                .anyRequest().authenticated()
+                .requestMatchers("/my-service/api/ff4j-web-console/**").hasRole("ADMIN") // Protect FF4j Console
+                .requestMatchers("/my-service/api/ff4j/**").hasRole("ADMIN") // Protect FF4j API
+                .anyRequest().permitAll() // Allow other URLs
             )
-            .formLogin(withDefaults()) // Modern way to configure form-based login
-            .httpBasic(withDefaults()); // Keep basic auth enabled for console access if needed
-
-        return http.build();
-    }
-
-    @Bean
-    public SecurityFilterChain apiSecurity(HttpSecurity http) throws Exception {
-        http
-            .securityMatcher("/api/ff4j/**")
-            .authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll()); // Allow open access to the API
+            .formLogin(withDefaults()) // Enable form-based login
+            .httpBasic(withDefaults()); // Enable basic authentication for APIs
 
         return http.build();
     }
