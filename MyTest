@@ -1,68 +1,45 @@
-import org.ff4j.FF4j;
-import org.ff4j.store.FeatureStoreJdbc;
-import org.ff4j.store.PropertyStoreJdbc;
-import org.ff4j.store.EventRepositoryJdbc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import javax.sql.DataSource;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
-public class FF4jConfig {
+public class SecurityConfig {
 
     @Bean
-    public FF4j ff4j(DataSource dataSource) {
-        FF4j ff4j = new FF4j();
-        ff4j.setFeatureStore(new FeatureStoreJdbc(dataSource));
-        ff4j.setPropertiesStore(new PropertyStoreJdbc(dataSource));
-        ff4j.setEventRepository(new EventRepositoryJdbc(dataSource));
-        ff4j.audit(true);
-        return ff4j;
+    public InMemoryUserDetailsManager userDetailsService() {
+        UserDetails user = User.withDefaultPasswordEncoder()
+                .username("admin")
+                .password("password")
+                .roles("ADMIN")
+                .build();
+        return new InMemoryUserDetailsManager(user);
+    }
+
+    @Bean
+    public SecurityFilterChain consoleSecurity(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher("/ff4j-web-console/**")
+            .authorizeHttpRequests(auth -> auth
+                .anyRequest().authenticated()
+            )
+            .formLogin()
+            .and()
+            .httpBasic(); // Enable basic authentication for the console
+
+        return http.build();
+    }
+
+    @Bean
+    public SecurityFilterChain apiSecurity(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher("/api/ff4j/**")
+            .authorizeHttpRequests(auth -> auth
+                .anyRequest().permitAll()); // Leave API unprotected for now
+
+        return http.build();
     }
 }
-
-
-
-spring:
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-  datasource:
-    url: jdbc:h2:mem:testdb
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
-
-
-CREATE TABLE FF4J_FEATURES (
-    FEAT_UID VARCHAR(100) NOT NULL,
-    ENABLED BOOLEAN NOT NULL,
-    DESCRIPTION VARCHAR(255),
-    STRATEGY VARCHAR(255),
-    EXPRESSION VARCHAR(255),
-    GROUPNAME VARCHAR(100),
-    PRIMARY KEY (FEAT_UID)
-);
-
-CREATE TABLE FF4J_PROPERTIES (
-    PROPERTY_ID VARCHAR(100) NOT NULL,
-    CLASSTYPE  VARCHAR(255),
-    CURRENTVALUE VARCHAR(255),
-    FIXEDVALUES VARCHAR(255),
-    DESCRIPTION VARCHAR(255),
-    PRIMARY KEY (PROPERTY_ID)
-);
-
-CREATE TABLE FF4J_AUDIT (
-    AUDIT_ID BIGINT AUTO_INCREMENT,
-    EVENT_TIME TIMESTAMP NOT NULL,
-    EVENT_NAME VARCHAR(100) NOT NULL,
-    FEAT_UID VARCHAR(100),
-    SOURCE VARCHAR(100),
-    HOSTNAME VARCHAR(100),
-    USERNAME VARCHAR(100),
-    ACTION VARCHAR(100),
-    PRIMARY KEY (AUDIT_ID)
-);
-
