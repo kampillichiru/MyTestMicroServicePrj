@@ -25,6 +25,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth
+                // Use Ant-style patterns for servlet-based URLs
                 .requestMatchers("/my-service/api/ff4j-web-console/**").hasRole("ADMIN") // Protect FF4j Console
                 .requestMatchers("/my-service/api/ff4j/**").hasRole("ADMIN") // Protect FF4j API
                 .anyRequest().permitAll() // Allow other URLs
