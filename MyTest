@@ -1,39 +1,66 @@
-import org.springframework.context.annotation.Bean;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
-import org.springframework.security.web.SecurityFilterChain;
-
-import static org.springframework.security.config.Customizer.withDefaults;
+import java.util.List;
 
 @Configuration
-public class SecurityConfig {
+@ConfigurationProperties(prefix = "file")
+public class FileMappingConfig {
 
-    @Bean
-    public InMemoryUserDetailsManager userDetailsService() {
-        UserDetails user = User.withDefaultPasswordEncoder()
-                .username("admin")
-                .password("password")
-                .roles("ADMIN")
-                .build();
-        return new InMemoryUserDetailsManager(user);
+    private List<FileMapping> mappings;
+
+    public List<FileMapping> getMappings() {
+        return mappings;
     }
 
-    @Bean
-    public SecurityFilterChain consoleSecurityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .securityMatcher("/ff4j-web-console/**") // Match the console path
-            .authorizeHttpRequests(auth -> auth
-                .anyRequest().hasRole("ADMIN") // Require ADMIN role for console
-            )
-            .formLogin(form -> form
-                .loginPage("/login") // Optional: Specify a custom login page
-                .permitAll() // Allow access to the login page
-            )
-            .httpBasic(withDefaults()); // Enable basic auth as a fallback
+    public void setMappings(List<FileMapping> mappings) {
+        this.mappings = mappings;
+    }
 
-        return http.build();
+    public FileMapping getMappingByOldName(String oldName) {
+        return mappings.stream()
+                .filter(m -> m.getOldName().equalsIgnoreCase(oldName))
+                .findFirst()
+                .orElse(null);
+    }
+}
+
+
+file:
+  mappings:
+    - oldName: KPTR8392.V20
+      newName: EPTR8392.V20
+      scheduler: com.example.scheduler.MySchedulerClass
+    - oldName: ABC1234.V01
+      newName: XYZ5678.V01
+      scheduler: com.example.scheduler.AnotherScheduler
+
+
+public class FileMapping {
+    private String oldName;
+    private String newName;
+    private String scheduler;
+
+    public String getOldName() {
+        return oldName;
+    }
+
+    public void setOldName(String oldName) {
+        this.oldName = oldName;
+    }
+
+    public String getNewName() {
+        return newName;
+    }
+
+    public void setNewName(String newName) {
+        this.newName = newName;
+    }
+
+    public String getScheduler() {
+        return scheduler;
+    }
+
+    public void setScheduler(String scheduler) {
+        this.scheduler = scheduler;
     }
 }
