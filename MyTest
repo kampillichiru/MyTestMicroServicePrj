@@ -1,66 +1,72 @@
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
-import java.util.List;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
 
-@Configuration
-@ConfigurationProperties(prefix = "file")
-public class FileMappingConfig {
+public class JsonUtil {
 
-    private List<FileMapping> mappings;
+    private static final ScriptEngine engine;
 
-    public List<FileMapping> getMappings() {
-        return mappings;
+    static {
+        // Initialize the ScriptEngine (Rhino engine for JDK 1.7)
+        engine = new ScriptEngineManager().getEngineByName("JavaScript");
     }
 
-    public void setMappings(List<FileMapping> mappings) {
-        this.mappings = mappings;
+    /**
+     * Parses the given JSON string and returns the value of the specified key.
+     *
+     * @param json  the JSON string to parse.
+     * @param key   the key whose value needs to be extracted.
+     * @param clazz the class type of the value (e.g., String.class, Integer.class).
+     * @param <T>   the type of the value.
+     * @return the value of the specified key, or null if not found.
+     * @throws ScriptException if the JSON parsing fails.
+     */
+    public static <T> T getValue(String json, String key, Class<T> clazz) throws ScriptException {
+        // Parse the JSON and evaluate the object using the ScriptEngine
+        engine.eval("var obj = JSON.parse('" + json.replace("'", "\\'") + "');");
+        
+        // Evaluate the key and cast the result to the expected type
+        Object result = engine.eval("obj" + key);
+        return clazz.cast(result);
     }
 
-    public FileMapping getMappingByOldName(String oldName) {
-        return mappings.stream()
-                .filter(m -> m.getOldName().equalsIgnoreCase(oldName))
-                .findFirst()
-                .orElse(null);
-    }
-}
-
-
-file:
-  mappings:
-    - oldName: KPTR8392.V20
-      newName: EPTR8392.V20
-      scheduler: com.example.scheduler.MySchedulerClass
-    - oldName: ABC1234.V01
-      newName: XYZ5678.V01
-      scheduler: com.example.scheduler.AnotherScheduler
-
-
-public class FileMapping {
-    private String oldName;
-    private String newName;
-    private String scheduler;
-
-    public String getOldName() {
-        return oldName;
+    /**
+     * A generic method to extract a value from the given JSON string.
+     * Handles both simple and nested JSON keys.
+     *
+     * @param json the JSON string to parse.
+     * @param key  the key whose value needs to be extracted, can be nested.
+     * @return the value as an Object.
+     * @throws ScriptException if the JSON parsing fails.
+     */
+    public static Object getValue(String json, String key) throws ScriptException {
+        engine.eval("var obj = JSON.parse('" + json.replace("'", "\\'") + "');");
+        return engine.eval("obj" + key);
     }
 
-    public void setOldName(String oldName) {
-        this.oldName = oldName;
-    }
+    public static void main(String[] args) {
+        String json = "{ \"name\": \"John Doe\", \"age\": 30, \"city\": \"New York\", \"address\": { \"street\": \"5th Ave\", \"zip\": \"10001\" } }";
 
-    public String getNewName() {
-        return newName;
-    }
+        try {
+            // Examples of extracting values
+            String name = JsonUtil.getValue(json, ".name", String.class);
+            int age = JsonUtil.getValue(json, ".age", Integer.class);
+            String city = JsonUtil.getValue(json, ".city", String.class);
+            String street = JsonUtil.getValue(json, ".address.street", String.class);
+            String zip = JsonUtil.getValue(json, ".address.zip", String.class);
 
-    public void setNewName(String newName) {
-        this.newName = newName;
-    }
-
-    public String getScheduler() {
-        return scheduler;
-    }
-
-    public void setScheduler(String scheduler) {
-        this.scheduler = scheduler;
+            System.out.println("Name: " + name);
+            System.out.println("Age: " + age);
+            System.out.println("City: " + city);
+            System.out.println("Street: " + street);
+            System.out.println("Zip: " + zip);
+            
+            // More generic method (returns any Object)
+            Object dynamicValue = JsonUtil.getValue(json, ".address.zip");
+            System.out.println("Dynamic Address Zip: " + dynamicValue);
+            
+        } catch (ScriptException e) {
+            e.printStackTrace();
+        }
     }
 }
