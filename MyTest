@@ -1,72 +1,88 @@
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 
-public class JsonUtil {
 
-    private static final ScriptEngine engine;
+public class JacksonXmlGenerator {
 
-    static {
-        // Initialize the ScriptEngine (Rhino engine for JDK 1.7)
-        engine = new ScriptEngineManager().getEngineByName("JavaScript");
+    public String createXmlRequest() throws Exception {
+        Envelope envelope = new Envelope();
+        Envelope.Body body = new Envelope.Body();
+        Envelope.Body.TestEdition testEdition = new Envelope.Body.TestEdition();
+        testEdition.setVersion("1.0");
+        testEdition.setTest("Some value");
+        body.setTestEdition(testEdition);
+
+        envelope.setBody(body);
+
+        XmlMapper xmlMapper = new XmlMapper();
+        return xmlMapper.writerWithDefaultPrettyPrinter().writeValueAsString(envelope);
+    }
+}
+
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+
+@JacksonXmlRootElement(localName = "Envelope", namespace = "http://schemas.xmlsoap.org/soap/envelope/")
+public class Envelope {
+
+    private Header header;
+    private Body body;
+
+    @JsonProperty("Header")
+    public Header getHeader() {
+        return header;
     }
 
-    /**
-     * Parses the given JSON string and returns the value of the specified key.
-     *
-     * @param json  the JSON string to parse.
-     * @param key   the key whose value needs to be extracted.
-     * @param clazz the class type of the value (e.g., String.class, Integer.class).
-     * @param <T>   the type of the value.
-     * @return the value of the specified key, or null if not found.
-     * @throws ScriptException if the JSON parsing fails.
-     */
-    public static <T> T getValue(String json, String key, Class<T> clazz) throws ScriptException {
-        // Parse the JSON and evaluate the object using the ScriptEngine
-        engine.eval("var obj = JSON.parse('" + json.replace("'", "\\'") + "');");
-        
-        // Evaluate the key and cast the result to the expected type
-        Object result = engine.eval("obj" + key);
-        return clazz.cast(result);
+    public void setHeader(Header header) {
+        this.header = header;
     }
 
-    /**
-     * A generic method to extract a value from the given JSON string.
-     * Handles both simple and nested JSON keys.
-     *
-     * @param json the JSON string to parse.
-     * @param key  the key whose value needs to be extracted, can be nested.
-     * @return the value as an Object.
-     * @throws ScriptException if the JSON parsing fails.
-     */
-    public static Object getValue(String json, String key) throws ScriptException {
-        engine.eval("var obj = JSON.parse('" + json.replace("'", "\\'") + "');");
-        return engine.eval("obj" + key);
+    @JsonProperty("Body")
+    public Body getBody() {
+        return body;
     }
 
-    public static void main(String[] args) {
-        String json = "{ \"name\": \"John Doe\", \"age\": 30, \"city\": \"New York\", \"address\": { \"street\": \"5th Ave\", \"zip\": \"10001\" } }";
+    public void setBody(Body body) {
+        this.body = body;
+    }
 
-        try {
-            // Examples of extracting values
-            String name = JsonUtil.getValue(json, ".name", String.class);
-            int age = JsonUtil.getValue(json, ".age", Integer.class);
-            String city = JsonUtil.getValue(json, ".city", String.class);
-            String street = JsonUtil.getValue(json, ".address.street", String.class);
-            String zip = JsonUtil.getValue(json, ".address.zip", String.class);
+    public static class Header {
+        // Define Header fields if needed
+    }
 
-            System.out.println("Name: " + name);
-            System.out.println("Age: " + age);
-            System.out.println("City: " + city);
-            System.out.println("Street: " + street);
-            System.out.println("Zip: " + zip);
-            
-            // More generic method (returns any Object)
-            Object dynamicValue = JsonUtil.getValue(json, ".address.zip");
-            System.out.println("Dynamic Address Zip: " + dynamicValue);
-            
-        } catch (ScriptException e) {
-            e.printStackTrace();
+    public static class Body {
+        private TestEdition testEdition;
+
+        @JsonProperty("testEdition")
+        public TestEdition getTestEdition() {
+            return testEdition;
+        }
+
+        public void setTestEdition(TestEdition testEdition) {
+            this.testEdition = testEdition;
+        }
+
+        public static class TestEdition {
+            private String version;
+            private String testEdition;
+
+            @JsonProperty("version")
+            public String getVersion() {
+                return version;
+            }
+
+            public void setVersion(String version) {
+                this.version = version;
+            }
+
+            @JsonProperty(testEdition)
+            public String getTestEdition() {
+                return testEdition;
+            }
+
+            public void settestEdition(String testEdition) {
+                this.testEdition = testEdition;
+            }
         }
     }
 }
