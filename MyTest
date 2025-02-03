@@ -1,30 +1,28 @@
-import jakarta.xml.bind.*;
+import jakarta.xml.bind.JAXBContext;
+import jakarta.xml.bind.JAXBException;
+import jakarta.xml.bind.Marshaller;
 
-import java.io.StringReader;
-import java.io.StringWriter;
-
-public class JaxbUtil {
-
-    public static <T> String toXml(T object) {
+public class Main {
+    public static void main(String[] args) {
         try {
-            JAXBContext context = JAXBContext.newInstance(object.getClass());
+            // Create a sample request object
+            GetCustomerRequest request = new GetCustomerRequest("12345");
+
+            // Create the SOAP envelope with the request object
+            SoapEnvelope envelope = new SoapEnvelope(request);
+
+            // Set header value
+            envelope.header = "Sample Header";
+
+            // Marshal the object to XML
+            JAXBContext context = JAXBContext.newInstance(SoapEnvelope.class);
             Marshaller marshaller = context.createMarshaller();
-            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
-            StringWriter writer = new StringWriter();
-            marshaller.marshal(object, writer);
-            return writer.toString();
-        } catch (JAXBException e) {
-            throw new RuntimeException("Error converting object to XML", e);
-        }
-    }
 
-    public static <T> T fromXml(String xml, Class<T> clazz) {
-        try {
-            JAXBContext context = JAXBContext.newInstance(clazz);
-            Unmarshaller unmarshaller = context.createUnmarshaller();
-            return (T) unmarshaller.unmarshal(new StringReader(xml));
+            // Print formatted XML
+            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
+            marshaller.marshal(envelope, System.out);  // Print to console
         } catch (JAXBException e) {
-            throw new RuntimeException("Error converting XML to Object", e);
+            e.printStackTrace();
         }
     }
 }
