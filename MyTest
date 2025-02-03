@@ -1,28 +1,129 @@
-import jakarta.xml.bind.JAXBContext;
-import jakarta.xml.bind.JAXBException;
-import jakarta.xml.bind.Marshaller;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
 
-public class Main {
-    public static void main(String[] args) {
+@Component
+public class WebServiceRunner implements CommandLineRunner {
+
+    private final SoapClientService soapClientService;
+
+    @Autowired
+    public WebServiceRunner(SoapClientService soapClientService) {
+        this.soapClientService = soapClientService;
+    }
+
+    @Override
+    public void run(String... args) throws Exception {
+        SoapRequest request = new SoapRequest();
+        request.setSomeField("Test Request");
+
+        String uri = "http://example.com/soapservice";
+        SoapResponse response = (SoapResponse) soapClientService.sendSoapRequest(request, uri);
+        System.out.println("Response: " + response.getResponseMessage());
+    }
+}
+
+
+import javax.xml.bind.annotation.XmlElement;
+import javax.xml.bind.annotation.XmlRootElement;
+
+@XmlRootElement(name = "Request")
+public class SoapRequest {
+
+    private String someField;
+
+    @XmlElement
+    public String getSomeField() {
+        return someField;
+    }
+
+    public void setSomeField(String someField) {
+        this.someField = someField;
+    }
+}
+
+@XmlRootElement(name = "Response")
+public class SoapResponse {
+
+    private String responseMessage;
+
+    @XmlElement
+    public String getResponseMessage() {
+        return responseMessage;
+    }
+
+    public void setResponseMessage(String responseMessage) {
+        this.responseMessage = responseMessage;
+    }
+}
+
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.ws.client.core.WebServiceTemplate;
+import org.springframework.ws.soap.client.SoapFaultClientException;
+import org.springframework.stereotype.Service;
+
+@Service
+public class SoapClientService {
+
+    private final WebServiceTemplate webServiceTemplate;
+
+    @Autowired
+    public SoapClientService(WebServiceTemplate webServiceTemplate) {
+        this.webServiceTemplate = webServiceTemplate;
+    }
+
+    public Object sendSoapRequest(Object requestPayload, String uri) {
         try {
-            // Create a sample request object
-            GetCustomerRequest request = new GetCustomerRequest("12345");
-
-            // Create the SOAP envelope with the request object
-            SoapEnvelope envelope = new SoapEnvelope(request);
-
-            // Set header value
-            envelope.header = "Sample Header";
-
-            // Marshal the object to XML
-            JAXBContext context = JAXBContext.newInstance(SoapEnvelope.class);
-            Marshaller marshaller = context.createMarshaller();
-
-            // Print formatted XML
-            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
-            marshaller.marshal(envelope, System.out);  // Print to console
-        } catch (JAXBException e) {
-            e.printStackTrace();
+            return webServiceTemplate.marshalSendAndReceive(uri, requestPayload);
+        } catch (SoapFaultClientException e) {
+            // Handle the SOAP fault error here
+            throw new RuntimeException("SOAP Fault: " + e.getMessage(), e);
         }
     }
 }
+
+
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.ws.client.core.WebServiceTemplate;
+import org.springframework.oxm.jaxb.Jaxb2Marshaller;
+
+@Configuration
+public class WebServiceConfig {
+
+    @Bean
+    public WebServiceTemplate webServiceTemplate(Jaxb2Marshaller marshaller, Jaxb2Marshaller unmarshaller) {
+        WebServiceTemplate webServiceTemplate = new WebServiceTemplate(marshaller);
+        webServiceTemplate.setUnmarshaller(unmarshaller);
+        webServiceTemplate.setMarshaller(marshaller);
+        return webServiceTemplate;
+    }
+
+    @Bean
+    public Jaxb2Marshaller marshaller() {
+        Jaxb2Marshaller marshaller = new Jaxb2Marshaller();
+        marshaller.setContextPath("com.example.soapservice"); // Set your package here
+        return marshaller;
+    }
+
+    @Bean
+    public Jaxb2Marshaller unmarshaller() {
+        return marshaller();
+    }
+}
+
+
+<dependency>
+    <groupId>org.springframework.ws</groupId>
+    <artifactId>spring-webservices</artifactId>
+    <version>3.1.4</version> <!-- Use the appropriate version -->
+</dependency>
+
+<dependency>
+    <groupId>org.glassfish.jaxb</groupId>
+    <artifactId>jaxb-runtime</artifactId>
+    <version>2.4.0-b180830.0359</version> <!-- Use the appropriate version -->
+</dependency>
+
