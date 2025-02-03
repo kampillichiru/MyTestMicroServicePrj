@@ -1,88 +1,110 @@
-import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import feign.codec.Decoder;
+import feign.Response;
+import jakarta.xml.bind.JAXBContext;
+import jakarta.xml.bind.Unmarshaller;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
+
+public class SoapResponseDecoder implements Decoder {
+
+    @Override
+    public Object decode(Response response, Type type) throws IOException {
+        try (InputStream inputStream = response.body().asInputStream()) {
+            // Read the response body into a string
+            String xmlResponse = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+
+            // Unmarshal the XML back into a Java object
+            JAXBContext context = JAXBContext.newInstance(type);
+            Unmarshaller unmarshaller = context.createUnmarshaller();
+            return unmarshaller.unmarshal(new ByteArrayInputStream(xmlResponse.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IOException("Error during decoding SOAP response", e);
+        }
+    }
+}
 
 
-public class JacksonXmlGenerator {
 
-    public String createXmlRequest() throws Exception {
-        Envelope envelope = new Envelope();
-        Envelope.Body body = new Envelope.Body();
-        Envelope.Body.TestEdition testEdition = new Envelope.Body.TestEdition();
-        testEdition.setVersion("1.0");
-        testEdition.setTest("Some value");
-        body.setTestEdition(testEdition);
+import feign.codec.Encoder;
+import feign.RequestTemplate;
+import jakarta.xml.bind.JAXBContext;
+import jakarta.xml.bind.Marshaller;
 
-        envelope.setBody(body);
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
-        XmlMapper xmlMapper = new XmlMapper();
-        return xmlMapper.writerWithDefaultPrettyPrinter().writeValueAsString(envelope);
+public class SoapRequestEncoder implements Encoder {
+
+    @Override
+    public void encode(Object object, RequestTemplate template) throws IOException {
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            // Marshal the object to XML
+            JAXBContext context = JAXBContext.newInstance(object.getClass());
+            Marshaller marshaller = context.createMarshaller();
+            marshaller.marshal(object, outputStream);
+
+            // Convert XML to string and set the body of the request
+            String xmlRequest = outputStream.toString(StandardCharsets.UTF_8);
+            template.body(xmlRequest, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new IOException("Error during encoding SOAP request", e);
+        }
     }
 }
 
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+@XmlRootElement(name = "Envelope", namespace = "http://schemas.xmlsoap.org/soap/envelope/")
+@XmlAccessorType(XmlAccessType.FIELD)
+public class SoapEnvelope {
 
-@JacksonXmlRootElement(localName = "Envelope", namespace = "http://schemas.xmlsoap.org/soap/envelope/")
-public class Envelope {
+    @XmlElement(name = "Header", namespace = "http://schemas.xmlsoap.org/soap/envelope/")
+    private String header = "";
 
-    private Header header;
-    private Body body;
+    @XmlElement(name = "Body", namespace = "http://schemas.xmlsoap.org/soap/envelope/")
+    private SoapBody body;
 
-    @JsonProperty("Header")
-    public Header getHeader() {
-        return header;
+    public SoapEnvelope(Object requestObject) {
+        this.body = new SoapBody(requestObject);
     }
 
-    public void setHeader(Header header) {
-        this.header = header;
-    }
+    public SoapEnvelope() {}
 
-    @JsonProperty("Body")
-    public Body getBody() {
-        return body;
-    }
+    @XmlAccessorType(XmlAccessType.FIELD)
+    public static class SoapBody {
+        @XmlElement
+        private Object request;
 
-    public void setBody(Body body) {
-        this.body = body;
-    }
-
-    public static class Header {
-        // Define Header fields if needed
-    }
-
-    public static class Body {
-        private TestEdition testEdition;
-
-        @JsonProperty("testEdition")
-        public TestEdition getTestEdition() {
-            return testEdition;
-        }
-
-        public void setTestEdition(TestEdition testEdition) {
-            this.testEdition = testEdition;
-        }
-
-        public static class TestEdition {
-            private String version;
-            private String testEdition;
-
-            @JsonProperty("version")
-            public String getVersion() {
-                return version;
-            }
-
-            public void setVersion(String version) {
-                this.version = version;
-            }
-
-            @JsonProperty(testEdition)
-            public String getTestEdition() {
-                return testEdition;
-            }
-
-            public void settestEdition(String testEdition) {
-                this.testEdition = testEdition;
-            }
+        public SoapBody(Object request) {
+            this.request = request;
         }
     }
 }
+
+
+
+@XmlRootElement(name = "GetCustomerRequest", namespace = "http://example.com/customer")
+@XmlAccessorType(XmlAccessType.FIELD)
+public record GetCustomerRequest(
+        @XmlElement(name = "CustomerId", namespace = "http://example.com/customer") 
+        String customerId) {
+    
+    public GetCustomerRequest(String customerId) {
+        this.customerId = customerId;
+    }
+}
+
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-webflux</artifactId>
+</dependency>
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-xml</artifactId>
+</dependency>
