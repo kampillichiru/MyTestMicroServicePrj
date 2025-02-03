@@ -1,110 +1,30 @@
-import feign.codec.Decoder;
-import feign.Response;
-import jakarta.xml.bind.JAXBContext;
-import jakarta.xml.bind.Unmarshaller;
+import jakarta.xml.bind.*;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.reflect.Type;
-import java.nio.charset.StandardCharsets;
+import java.io.StringReader;
+import java.io.StringWriter;
 
-public class SoapResponseDecoder implements Decoder {
+public class JaxbUtil {
 
-    @Override
-    public Object decode(Response response, Type type) throws IOException {
-        try (InputStream inputStream = response.body().asInputStream()) {
-            // Read the response body into a string
-            String xmlResponse = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
-
-            // Unmarshal the XML back into a Java object
-            JAXBContext context = JAXBContext.newInstance(type);
-            Unmarshaller unmarshaller = context.createUnmarshaller();
-            return unmarshaller.unmarshal(new ByteArrayInputStream(xmlResponse.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception e) {
-            throw new IOException("Error during decoding SOAP response", e);
-        }
-    }
-}
-
-
-
-import feign.codec.Encoder;
-import feign.RequestTemplate;
-import jakarta.xml.bind.JAXBContext;
-import jakarta.xml.bind.Marshaller;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-
-public class SoapRequestEncoder implements Encoder {
-
-    @Override
-    public void encode(Object object, RequestTemplate template) throws IOException {
-        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            // Marshal the object to XML
+    public static <T> String toXml(T object) {
+        try {
             JAXBContext context = JAXBContext.newInstance(object.getClass());
             Marshaller marshaller = context.createMarshaller();
-            marshaller.marshal(object, outputStream);
+            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
+            StringWriter writer = new StringWriter();
+            marshaller.marshal(object, writer);
+            return writer.toString();
+        } catch (JAXBException e) {
+            throw new RuntimeException("Error converting object to XML", e);
+        }
+    }
 
-            // Convert XML to string and set the body of the request
-            String xmlRequest = outputStream.toString(StandardCharsets.UTF_8);
-            template.body(xmlRequest, StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new IOException("Error during encoding SOAP request", e);
+    public static <T> T fromXml(String xml, Class<T> clazz) {
+        try {
+            JAXBContext context = JAXBContext.newInstance(clazz);
+            Unmarshaller unmarshaller = context.createUnmarshaller();
+            return (T) unmarshaller.unmarshal(new StringReader(xml));
+        } catch (JAXBException e) {
+            throw new RuntimeException("Error converting XML to Object", e);
         }
     }
 }
-
-
-@XmlRootElement(name = "Envelope", namespace = "http://schemas.xmlsoap.org/soap/envelope/")
-@XmlAccessorType(XmlAccessType.FIELD)
-public class SoapEnvelope {
-
-    @XmlElement(name = "Header", namespace = "http://schemas.xmlsoap.org/soap/envelope/")
-    private String header = "";
-
-    @XmlElement(name = "Body", namespace = "http://schemas.xmlsoap.org/soap/envelope/")
-    private SoapBody body;
-
-    public SoapEnvelope(Object requestObject) {
-        this.body = new SoapBody(requestObject);
-    }
-
-    public SoapEnvelope() {}
-
-    @XmlAccessorType(XmlAccessType.FIELD)
-    public static class SoapBody {
-        @XmlElement
-        private Object request;
-
-        public SoapBody(Object request) {
-            this.request = request;
-        }
-    }
-}
-
-
-
-@XmlRootElement(name = "GetCustomerRequest", namespace = "http://example.com/customer")
-@XmlAccessorType(XmlAccessType.FIELD)
-public record GetCustomerRequest(
-        @XmlElement(name = "CustomerId", namespace = "http://example.com/customer") 
-        String customerId) {
-    
-    public GetCustomerRequest(String customerId) {
-        this.customerId = customerId;
-    }
-}
-
-
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-webflux</artifactId>
-</dependency>
-
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-xml</artifactId>
-</dependency>
