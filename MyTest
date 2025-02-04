@@ -1,129 +1,54 @@
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.stereotype.Component;
+import com.itextpdf.kernel.pdf.*;
+import com.itextpdf.kernel.pdf.canvas.parser.*;
+import com.itextpdf.kernel.pdf.canvas.parser.listener.IEventListener;
+import com.itextpdf.kernel.pdf.canvas.parser.listener.ImageRenderInfo;
 
-@Component
-public class WebServiceRunner implements CommandLineRunner {
+import java.io.IOException;
 
-    private final SoapClientService soapClientService;
+public class PdfImageRotationChecker {
 
-    @Autowired
-    public WebServiceRunner(SoapClientService soapClientService) {
-        this.soapClientService = soapClientService;
-    }
+    public static void main(String[] args) {
+        String filePath = "path/to/your/file.pdf"; // Change this
 
-    @Override
-    public void run(String... args) throws Exception {
-        SoapRequest request = new SoapRequest();
-        request.setSomeField("Test Request");
-
-        String uri = "http://example.com/soapservice";
-        SoapResponse response = (SoapResponse) soapClientService.sendSoapRequest(request, uri);
-        System.out.println("Response: " + response.getResponseMessage());
-    }
-}
-
-
-import javax.xml.bind.annotation.XmlElement;
-import javax.xml.bind.annotation.XmlRootElement;
-
-@XmlRootElement(name = "Request")
-public class SoapRequest {
-
-    private String someField;
-
-    @XmlElement
-    public String getSomeField() {
-        return someField;
-    }
-
-    public void setSomeField(String someField) {
-        this.someField = someField;
-    }
-}
-
-@XmlRootElement(name = "Response")
-public class SoapResponse {
-
-    private String responseMessage;
-
-    @XmlElement
-    public String getResponseMessage() {
-        return responseMessage;
-    }
-
-    public void setResponseMessage(String responseMessage) {
-        this.responseMessage = responseMessage;
-    }
-}
-
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.ws.client.core.WebServiceTemplate;
-import org.springframework.ws.soap.client.SoapFaultClientException;
-import org.springframework.stereotype.Service;
-
-@Service
-public class SoapClientService {
-
-    private final WebServiceTemplate webServiceTemplate;
-
-    @Autowired
-    public SoapClientService(WebServiceTemplate webServiceTemplate) {
-        this.webServiceTemplate = webServiceTemplate;
-    }
-
-    public Object sendSoapRequest(Object requestPayload, String uri) {
         try {
-            return webServiceTemplate.marshalSendAndReceive(uri, requestPayload);
-        } catch (SoapFaultClientException e) {
-            // Handle the SOAP fault error here
-            throw new RuntimeException("SOAP Fault: " + e.getMessage(), e);
+            PdfReader reader = new PdfReader(filePath);
+            PdfDocument pdfDocument = new PdfDocument(reader);
+
+            for (int i = 1; i <= pdfDocument.getNumberOfPages(); i++) {
+                System.out.println("Checking images on Page " + i);
+
+                PdfPage page = pdfDocument.getPage(i);
+                ImageRotationListener listener = new ImageRotationListener();
+                PdfCanvasProcessor processor = new PdfCanvasProcessor(listener);
+                processor.processPageContent(page);
+            }
+
+            pdfDocument.close();
+            reader.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static class ImageRotationListener implements IEventListener {
+        @Override
+        public void eventOccurred(com.itextpdf.kernel.pdf.canvas.parser.data.IEventData data, EventType type) {
+            if (type == EventType.RENDER_IMAGE) {
+                ImageRenderInfo imageInfo = (ImageRenderInfo) data;
+                
+                // Get the transformation matrix
+                float[] matrix = imageInfo.getImageCtm().getMatrix();
+
+                // Calculate the image rotation angle
+                double angle = Math.toDegrees(Math.atan2(matrix[1], matrix[0]));
+                
+                System.out.println("Detected Image Rotation Angle: " + angle + " degrees");
+            }
+        }
+
+        @Override
+        public Set<EventType> getSupportedEvents() {
+            return Collections.singleton(EventType.RENDER_IMAGE);
         }
     }
 }
-
-
-import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.ws.client.core.WebServiceTemplate;
-import org.springframework.oxm.jaxb.Jaxb2Marshaller;
-
-@Configuration
-public class WebServiceConfig {
-
-    @Bean
-    public WebServiceTemplate webServiceTemplate(Jaxb2Marshaller marshaller, Jaxb2Marshaller unmarshaller) {
-        WebServiceTemplate webServiceTemplate = new WebServiceTemplate(marshaller);
-        webServiceTemplate.setUnmarshaller(unmarshaller);
-        webServiceTemplate.setMarshaller(marshaller);
-        return webServiceTemplate;
-    }
-
-    @Bean
-    public Jaxb2Marshaller marshaller() {
-        Jaxb2Marshaller marshaller = new Jaxb2Marshaller();
-        marshaller.setContextPath("com.example.soapservice"); // Set your package here
-        return marshaller;
-    }
-
-    @Bean
-    public Jaxb2Marshaller unmarshaller() {
-        return marshaller();
-    }
-}
-
-
-<dependency>
-    <groupId>org.springframework.ws</groupId>
-    <artifactId>spring-webservices</artifactId>
-    <version>3.1.4</version> <!-- Use the appropriate version -->
-</dependency>
-
-<dependency>
-    <groupId>org.glassfish.jaxb</groupId>
-    <artifactId>jaxb-runtime</artifactId>
-    <version>2.4.0-b180830.0359</version> <!-- Use the appropriate version -->
-</dependency>
-
