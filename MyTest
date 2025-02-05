@@ -1,54 +1,18 @@
-import com.itextpdf.kernel.pdf.*;
-import com.itextpdf.kernel.pdf.canvas.parser.*;
-import com.itextpdf.kernel.pdf.canvas.parser.listener.IEventListener;
-import com.itextpdf.kernel.pdf.canvas.parser.listener.ImageRenderInfo;
+<dependencies>
+    <!-- SOAP Web Services -->
+    <dependency>
+        <groupId>org.springframework.ws</groupId>
+        <artifactId>spring-ws-core</artifactId>
+    </dependency>
 
-import java.io.IOException;
+    <dependency>
+        <groupId>org.springframework.ws</groupId>
+        <artifactId>spring-ws-support</artifactId>
+    </dependency>
 
-public class PdfImageRotationChecker {
-
-    public static void main(String[] args) {
-        String filePath = "path/to/your/file.pdf"; // Change this
-
-        try {
-            PdfReader reader = new PdfReader(filePath);
-            PdfDocument pdfDocument = new PdfDocument(reader);
-
-            for (int i = 1; i <= pdfDocument.getNumberOfPages(); i++) {
-                System.out.println("Checking images on Page " + i);
-
-                PdfPage page = pdfDocument.getPage(i);
-                ImageRotationListener listener = new ImageRotationListener();
-                PdfCanvasProcessor processor = new PdfCanvasProcessor(listener);
-                processor.processPageContent(page);
-            }
-
-            pdfDocument.close();
-            reader.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    static class ImageRotationListener implements IEventListener {
-        @Override
-        public void eventOccurred(com.itextpdf.kernel.pdf.canvas.parser.data.IEventData data, EventType type) {
-            if (type == EventType.RENDER_IMAGE) {
-                ImageRenderInfo imageInfo = (ImageRenderInfo) data;
-                
-                // Get the transformation matrix
-                float[] matrix = imageInfo.getImageCtm().getMatrix();
-
-                // Calculate the image rotation angle
-                double angle = Math.toDegrees(Math.atan2(matrix[1], matrix[0]));
-                
-                System.out.println("Detected Image Rotation Angle: " + angle + " degrees");
-            }
-        }
-
-        @Override
-        public Set<EventType> getSupportedEvents() {
-            return Collections.singleton(EventType.RENDER_IMAGE);
-        }
-    }
-}
+    <dependency>
+        <groupId>javax.xml.ws</groupId>
+        <artifactId>jaxws-api</artifactId>
+        <version>2.3.1</version>
+    </dependency>
+</dependencies>
