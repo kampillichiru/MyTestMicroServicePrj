@@ -1,18 +1,11 @@
-import org.apache.hc.client5.http.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.protocol.HttpContext;
-import org.apache.hc.client5.http.impl.classic.RequestAddCookies;
-import org.apache.hc.client5.http.impl.classic.RequestExpectContinue;
-import org.apache.hc.client5.http.impl.classic.RequestTargetAuthentication;
-import org.apache.hc.client5.http.impl.classic.RequestUserAgent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.ws.client.core.WebServiceTemplate;
 import org.springframework.ws.transport.http.HttpComponentsMessageSender;
-
-import java.io.IOException;
 
 @Configuration
 public class WebServiceConfig {
@@ -21,15 +14,12 @@ public class WebServiceConfig {
     public WebServiceTemplate webServiceTemplate() {
         WebServiceTemplate webServiceTemplate = new WebServiceTemplate();
 
-        // Create HttpClient 5 with a request interceptor
+        // Assuming EntityDetails is your custom class that is expected here
         CloseableHttpClient httpClient = HttpClients.custom()
-            .addRequestInterceptorFirst((HttpRequest request, org.apache.hc.core5.http.protocol.HttpContext executionContext, org.apache.hc.core5.http.protocol.HttpProcessor processor) -> {
-                try {
-                    request.addHeader("Authorization", "Bearer my-token");
-                    request.addHeader("X-Custom-Header", "CustomValue");
-                } catch (Exception e) {
-                    throw new HttpException("Failed to add headers", e);
-                }
+            .addRequestInterceptorFirst((HttpRequest request, EntityDetails details) -> {
+                // Handle EntityDetails object and add headers
+                request.addHeader("Authorization", "Bearer my-token");
+                request.addHeader("X-Custom-Header", "CustomValue");
             })
             .build();
 
