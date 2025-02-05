@@ -1,22 +1,31 @@
-import org.springframework.http.HttpHeaders;
-import org.springframework.ws.client.support.interceptor.ClientInterceptorAdapter;
-import org.springframework.ws.context.MessageContext;
-import org.springframework.ws.transport.http.HttpTransportConstants;
-import org.springframework.ws.transport.http.HttpUrlConnection;
+import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.HttpRequestInterceptor;
+import org.apache.hc.core5.http.protocol.HttpContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.ws.client.core.WebServiceTemplate;
+import org.springframework.ws.transport.http.HttpComponentsMessageSender;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
 
-public class CustomHttpHeaderInterceptor extends ClientInterceptorAdapter {
+@Configuration
+public class WebServiceConfig {
 
-    @Override
-    public boolean handleRequest(MessageContext messageContext) {
-        try {
-            HttpUrlConnection connection = (HttpUrlConnection) messageContext.getProperty(HttpTransportConstants.HTTP_URL_CONNECTION);
-            if (connection != null) {
-                connection.getConnection().setRequestProperty("Authorization", "Bearer my-token");
-                connection.getConnection().setRequestProperty("X-Custom-Header", "CustomValue");
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to add HTTP headers", e);
-        }
-        return true;
+    @Bean
+    public WebServiceTemplate webServiceTemplate() {
+        WebServiceTemplate webServiceTemplate = new WebServiceTemplate();
+        
+        // Configure Apache HttpClient with custom headers
+        CloseableHttpClient httpClient = HttpClients.custom()
+            .addRequestInterceptorFirst((HttpRequest request, HttpContext context) -> {
+                request.addHeader("Authorization", "Bearer my-token");
+                request.addHeader("X-Custom-Header", "CustomValue");
+            })
+            .build();
+
+        HttpComponentsMessageSender messageSender = new HttpComponentsMessageSender(httpClient);
+        webServiceTemplate.setMessageSender(messageSender);
+
+        return webServiceTemplate;
     }
 }
