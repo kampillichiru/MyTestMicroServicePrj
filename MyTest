@@ -1,61 +1,37 @@
-To create a new data source for DB2 in WildFly using the WildFly Administration Console, follow these steps:
+Since your legacy Java-based web application uses **JSF and Hibernate-based entities** and is currently hosted on **WebSphere**, migrating to **WildFly** requires compatibility checks, particularly with **Hibernate** versions.
 
-Step 1: Download the DB2 JDBC Driver
-	1.	Download the DB2 JDBC driver (e.g., db2jcc4.jar) from IBM’s website.
-	2.	Copy the .jar file to WildFly’s module directory:
+### Key Considerations:
+1. **WebSphere Default Hibernate Version**:  
+   - WebSphere traditionally bundled **older versions of Hibernate (e.g., 3.x or 4.x)**.
+   - If your code was developed on **WebSphere's default Hibernate version**, ensure you match the same major version in WildFly.
 
-mkdir -p $WILDFLY_HOME/modules/system/layers/base/com/ibm/db2/main
+2. **WildFly Default Hibernate Version**:  
+   - WildFly includes **Hibernate ORM as a JPA provider**.
+   - Depending on the WildFly version:
+     - WildFly 10 → Hibernate 5.1  
+     - WildFly 17+ → Hibernate 5.3+  
+     - WildFly 26+ → Hibernate 5.5+  
+   - **If your application was running on Hibernate 3.x/4.x in WebSphere, WildFly’s default Hibernate version (5.x+) might cause compatibility issues.**
 
+### Recommended Approach:
+- **Identify the Hibernate version used in WebSphere** (`pom.xml` or `lib` folder if using a JAR).
+- **If WebSphere used Hibernate 3.x or 4.x, stick to Hibernate 4.x/5.x** in WildFly.
+- **Explicitly bundle Hibernate JARs with your application** instead of using the built-in WildFly JPA provider.
+  - Add `hibernate-core` dependency in `pom.xml` (if using Maven).
+  - Configure `jboss-deployment-structure.xml` to exclude WildFly’s built-in Hibernate:
+    ```xml
+    <jboss-deployment-structure>
+      <deployment>
+        <exclusions>
+          <module name="org.hibernate" />
+        </exclusions>
+      </deployment>
+    </jboss-deployment-structure>
+    ```
 
-	3.	Create a module.xml file in the same directory:
+### Final Recommendation:
+- **Try Hibernate 4.3.x or 5.1.x** if you want minimal changes.
+- If using Hibernate 3.x, you **must** upgrade since it’s **deprecated**.
+- Ensure compatibility by testing with **`hibernate-entitymanager`** and **`hibernate-core`**.
 
-<module xmlns="urn:jboss:module:1.3" name="com.ibm.db2">
-    <resources>
-        <resource-root path="db2jcc4.jar"/>
-    </resources>
-    <dependencies>
-        <module name="javax.api"/>
-        <module name="javax.transaction.api"/>
-    </dependencies>
-</module>
-
-Step 2: Start WildFly
-
-Start WildFly in standalone mode:
-
-$WILDFLY_HOME/bin/standalone.sh
-
-(Use standalone.bat on Windows.)
-
-Step 3: Open the WildFly Admin Console
-	1.	Open a web browser and go to:
-http://localhost:9990
-	2.	Navigate to Configuration → Subsystems → Datasources & Drivers.
-
-Step 4: Create a New Data Source
-	1.	Click on Data Sources → Add → New Data Source.
-	2.	Enter the following details:
-	•	Name: MyDB2DataSource
-	•	JNDI Name: java:/MyDB2DS
-	•	Driver Name: Select New → Enter a name (e.g., DB2Driver).
-	•	JDBC URL: jdbc:db2://your-db-host:50000/yourDB
-	•	Username: <your-db-username>
-	•	Password: <your-db-password>
-
-Step 5: Select the JDBC Driver
-	1.	Click Detected Driver → Select com.ibm.db2.
-	2.	If not detected, click Add → Select the JAR manually → Browse to the db2jcc4.jar.
-
-Step 6: Test and Enable
-	1.	Click Test Connection to verify the setup.
-	2.	Click Enable to activate the data source.
-
-Step 7: Verify Deployment
-
-Check the logs for confirmation:
-
-tail -f $WILDFLY_HOME/standalone/log/server.log
-
-If you see a message like “Bound data source [java:/MyDB2DS]”, your DB2 data source is successfully added.
-
-Would you like help with configuration in standalone.xml?
+Let me know the exact error message, and I can guide you further!
