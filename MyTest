@@ -1,37 +1,51 @@
-Since your legacy Java-based web application uses **JSF and Hibernate-based entities** and is currently hosted on **WebSphere**, migrating to **WildFly** requires compatibility checks, particularly with **Hibernate** versions.
+Here’s a structured approach for your PowerPoint presentation, covering the three required slides:
 
-### Key Considerations:
-1. **WebSphere Default Hibernate Version**:  
-   - WebSphere traditionally bundled **older versions of Hibernate (e.g., 3.x or 4.x)**.
-   - If your code was developed on **WebSphere's default Hibernate version**, ensure you match the same major version in WildFly.
+---
 
-2. **WildFly Default Hibernate Version**:  
-   - WildFly includes **Hibernate ORM as a JPA provider**.
-   - Depending on the WildFly version:
-     - WildFly 10 → Hibernate 5.1  
-     - WildFly 17+ → Hibernate 5.3+  
-     - WildFly 26+ → Hibernate 5.5+  
-   - **If your application was running on Hibernate 3.x/4.x in WebSphere, WildFly’s default Hibernate version (5.x+) might cause compatibility issues.**
+### **Slide 1: Business Focus Area & Research Approach**  
+**Title:** *Enhancing Internal Stakeholder Engagement*  
 
-### Recommended Approach:
-- **Identify the Hibernate version used in WebSphere** (`pom.xml` or `lib` folder if using a JAR).
-- **If WebSphere used Hibernate 3.x or 4.x, stick to Hibernate 4.x/5.x** in WildFly.
-- **Explicitly bundle Hibernate JARs with your application** instead of using the built-in WildFly JPA provider.
-  - Add `hibernate-core` dependency in `pom.xml` (if using Maven).
-  - Configure `jboss-deployment-structure.xml` to exclude WildFly’s built-in Hibernate:
-    ```xml
-    <jboss-deployment-structure>
-      <deployment>
-        <exclusions>
-          <module name="org.hibernate" />
-        </exclusions>
-      </deployment>
-    </jboss-deployment-structure>
-    ```
+**Key Points:**  
+- **Business Challenge:** How can we create a more engaging and satisfying experience for internal stakeholders (peers & managers) while leveraging expertise?  
+- **Research Approach:**  
+  - **Ethnographic Study:** Interviews with senior managers, product owners, and young graduates.  
+  - **Empathy Mapping:** Captured user thoughts, feelings, and pain points.  
+  - **AEIOU Canvas Tool:** Used to analyze observations and insights.  
 
-### Final Recommendation:
-- **Try Hibernate 4.3.x or 5.1.x** if you want minimal changes.
-- If using Hibernate 3.x, you **must** upgrade since it’s **deprecated**.
-- Ensure compatibility by testing with **`hibernate-entitymanager`** and **`hibernate-core`**.
+**Visual:** A simple flowchart showing the research process (Interviews → Empathy Mapping → AEIOU Canvas → Insights).  
 
-Let me know the exact error message, and I can guide you further!
+---
+
+### **Slide 2: Tools & Key Insights**  
+**Title:** *Discovery & Ideation*  
+
+**Key Points:**  
+- **Ideation Tools Used:**  
+  - *Yes And* – 22 Ideas  
+  - *Biomimicry* – 23 Ideas  
+  - *Six Thinking Hats* – 29 Ideas  
+  - *What-If* – 12 Ideas  
+  - **Total Ideas Generated:** 86  
+
+- **Final Pain Points Identified:**  
+  - Lack of visibility for young graduates (YGs).  
+  - Unclear career progression leading to attrition.  
+  - Limited structured engagement with stakeholders.  
+
+**Visual:** A mind map or icons representing the ideation tools + a pain points summary.  
+
+---
+
+### **Slide 3: How Might We & Top 3 Ideas**  
+**Title:** *How Might We Foster YG Engagement & Reduce Attrition?*  
+
+**How Might We Statement:**  
+*"How might we create a system for YGs (1-2 years experience) to engage with stakeholders, fostering future contributions and reducing attrition from X% to Y%?"*  
+
+**Top 3 Shortlisted Ideas:**  
+1. **YG Branding:** BU-level achievement and recognition boards to enhance visibility among senior managers.  
+2. **Assured Incremental Compensation:** Fixed 20% increase for three years + performance-based variable pay.  
+3. **Mentor/Mentee Program:** Confidential, tool-managed mentor assignments with customized recommendations.  
+
+**Visual:** Icons or small graphics for each of the three ideas.  
+
