@@ -149,3 +149,8 @@ Modify your **`web.xml`** to use **JSF 2.3 FaceServlet**:
 ✔ **Test and deploy in WildFly**  
 
 This ensures a **smooth JSF upgrade** from **1.2 → 2.3** with minimal changes. 🚀
+
+
+spring.http.encoding.charset=UTF-8
+spring.http.encoding.force=true
+spring.http.encoding.enabled=true
