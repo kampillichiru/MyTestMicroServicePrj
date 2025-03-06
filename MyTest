@@ -154,3 +154,8 @@ This ensures a **smooth JSF upgrade** from **1.2 → 2.3** with minimal changes.
 spring.http.encoding.charset=UTF-8
 spring.http.encoding.force=true
 spring.http.encoding.enabled=true
+
+3. Sending Request with French Characters
+
+In Headers, set:
+Content-Type: application/json; charset=UTF-8
