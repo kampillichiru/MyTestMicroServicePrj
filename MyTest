@@ -151,6 +151,85 @@ Modify your **`web.xml`** to use **JSF 2.3 FaceServlet**:
 This ensures a **smooth JSF upgrade** from **1.2 → 2.3** with minimal changes. 🚀
 
 
+## **Challenges in Migration from WebSphere 7 to WildFly 26**  
+
+Migrating from an old technology stack to a modernized one comes with multiple challenges, especially considering the differences in application servers, Java versions, frameworks, and architecture.
+
+---
+
+## **Key Challenges in Migration**  
+
+1. **JDK Upgrade (1.8 → 11+)**
+   - **Challenges:**
+     - Deprecated and removed APIs (e.g., `javax.xml.bind`, `javax.activation`, `SecurityManager` deprecations)
+     - Changes in classloading behavior and default garbage collector
+     - Need for Java modules (`java.base`, `java.sql`, etc.) if strong encapsulation is required
+   - **Mitigation:**
+     - Refactor code using removed APIs
+     - Use alternatives for JAXB, JAX-WS, and CORBA (`jakarta.xml.bind`, `jakarta.activation`)
+
+2. **Hibernate Upgrade (3.x → 5.x)**
+   - **Challenges:**
+     - EntityManager changes (`SessionFactory` and transaction handling updated)
+     - `hibernate.cfg.xml` configuration changes
+     - Query language (HQL) improvements (old syntax may break)
+     - Lazy loading behavior differences
+   - **Mitigation:**
+     - Update configurations and rewrite HQL queries
+     - Adapt to changes in transaction management
+
+3. **JSF Upgrade (1.2 → 2.x)**
+   - **Challenges:**
+     - Backward compatibility issues (e.g., `javax.faces` package changes)
+     - Navigation rules and expression language updates
+     - Component libraries (`RichFaces`, `PrimeFaces`) may require updates
+   - **Mitigation:**
+     - Rewrite JSF navigation and component references
+     - Test and validate managed beans
+
+4. **Application Server Migration (WebSphere 7 → WildFly 26)**
+   - **Challenges:**
+     - WebSphere-specific configurations (JNDI, datasources) need migration
+     - Security model differences (authentication, role mappings)
+     - Deployment descriptor changes (`web.xml`, `server.xml`)
+   - **Mitigation:**
+     - Use WildFly CLI to configure datasources and security realms
+     - Update deployment descriptors (`standalone.xml`, `jboss-web.xml`)
+
+5. **CICS Calls Compatibility**
+   - **Challenges:**
+     - CICS integration depends on WebSphere’s mainframe connectors
+     - WildFly may require custom implementations or alternative APIs
+   - **Mitigation:**
+     - Use **CICS Transaction Gateway** with WildFly
+     - Convert to REST-based CICS calls if feasible
+
+6. **WebSphere-Specific Features**
+   - **Challenges:**
+     - WebSphere extensions for transaction management, security, and JNDI
+     - External libraries may be incompatible with WildFly
+   - **Mitigation:**
+     - Identify and replace proprietary WebSphere APIs
+     - Test third-party libraries for compatibility
+
+---
+
+## **Pros & Cons: Rewrite vs Upgrade**
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Upgrade (Make Existing Code Compatible)** | ✅ Faster implementation ✅ Retains existing business logic ✅ Lower risk of defects | ❌ Technical debt remains ❌ Future upgrades will be difficult ❌ Workarounds may cause performance issues |
+| **Rewrite (Modernization)** | ✅ Cleaner, maintainable code ✅ Leverages modern frameworks & best practices ✅ Future-proof (cloud-native, microservices) | ❌ High initial cost & effort ❌ Requires extensive testing & validation ❌ Longer development cycle |
+
+---
+
+## **Recommendation**
+- If **time & cost** are constraints, an **upgrade** is preferable.
+- If the system is expected to scale and evolve, a **rewrite** is the better long-term choice.
+
+Would you like a **phase-wise migration strategy** for better risk management?
+
+
 spring.http.encoding.charset=UTF-8
 spring.http.encoding.force=true
 spring.http.encoding.enabled=true
