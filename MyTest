@@ -230,11 +230,12 @@ Migrating from an old technology stack to a modernized one comes with multiple c
 Would you like a **phase-wise migration strategy** for better risk management?
 
 
-spring.http.encoding.charset=UTF-8
-spring.http.encoding.force=true
-spring.http.encoding.enabled=true
 
-3. Sending Request with French Characters
+<?xml version="1.0" encoding="UTF-8"?>
+<faces-config xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+              http://xmlns.jcp.org/xml/ns/javaee/web-facesconfig_2_3.xsd"
+              version="2.3">
+</faces-config>
 
-In Headers, set:
-Content-Type: application/json; charset=UTF-8
