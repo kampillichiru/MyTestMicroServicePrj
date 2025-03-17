@@ -10,3 +10,9 @@
               maxIdle="10"
               maxWaitMillis="30000"/>
 </GlobalNamingResources>
+
+
+No Technology Upgrade Required – No need to migrate or upgrade existing technologies such as JSF, Hibernate, or CGI.
+REST API Integration – A REST API can be developed and hosted on WildFly, enabling seamless communication with COBOL programs via the CICS Gateway.
+Replacing Direct COBOL Calls – Existing COBOL program calls can be replaced with REST API calls for better maintainability and scalability.
+Minimal Code Changes – The transition involves minimal modifications, primarily replacing direct CICS calls with REST API interactions.
