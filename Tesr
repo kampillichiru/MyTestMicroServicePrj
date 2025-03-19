@@ -12,7 +12,54 @@
 </GlobalNamingResources>
 
 
-No Technology Upgrade Required – No need to migrate or upgrade existing technologies such as JSF, Hibernate, or CGI.
-REST API Integration – A REST API can be developed and hosted on WildFly, enabling seamless communication with COBOL programs via the CICS Gateway.
-Replacing Direct COBOL Calls – Existing COBOL program calls can be replaced with REST API calls for better maintainability and scalability.
-Minimal Code Changes – The transition involves minimal modifications, primarily replacing direct CICS calls with REST API interactions.
+Here's your **grammatically corrected and simplified proposal** for better readability and clarity:  
+
+---
+
+# **Proposal: Deploying MYA.jar in a Kubernetes Environment**  
+
+## **Current Understanding**  
+Our product will package `myTest.war` inside a Docker image and use **WildFly** for deployment within the container.  
+
+---
+
+## **Proposed Approaches**  
+
+### **Proposal-1: Using Persistent Volume**  
+1. **Create a Persistent Volume (PV)** in our Kubernetes namespace.  
+2. **Set up a GitHub Actions workflow** to copy `MYA.jar` to the Persistent Volume.  
+3. **Coordinate with the My Product team** to mount the Persistent Volume to the Pod when building the Docker image.  
+4. **Ensure the mounting path is included in the classpath**, similar to how WebSphere Application Server (WAS) handles shared libraries.  
+5. **Use Kubernetes volume mounting** as an alternative approach.  
+6. **Minimal changes required** for both My Product and our team.  
+7. When **MyApp triggers an event, it will invoke `MYA.jar` locally**.  
+8. `MYA.jar` will **expose a REST API** for further processing.  
+
+---
+
+### **Proposal-2: Embedding MYA.jar in the Docker Image**  
+1. **Add `MYA.jar` to the existing Docker image**.  
+2. **Rebuild the Docker image** based on the My Product team’s image using GitHub Actions.  
+3. **Push the updated Docker image to Harbor** (container registry).  
+4. **Deploy the updated image from Harbor** using GitHub Actions.  
+
+---
+
+### **Proposal-3: Minimal Change Approach**  
+1. **MYA.jar will only contain REST API call logic**.  
+2. **No significant changes in request/response structure**.  
+3. **Code modifications will be rare**.  
+4. **Share `MYA.jar` with the My Product team**.  
+5. **My Product team will add `MYA.jar` to the classpath and build the Docker image**.  
+6. **No changes required from our team**.  
+7. **Only minor configuration changes needed for the My Product team**.  
+
+---
+
+## **Conclusion**  
+Each approach offers different levels of flexibility and effort:  
+- **Proposal-1** ensures **dynamic updates** via Persistent Volume.  
+- **Proposal-2** offers **tighter integration** by embedding the JAR in the Docker image.  
+- **Proposal-3** is the **simplest** with minimal effort on our side.  
+
+Would you like a diagram to visualize these approaches? 🚀
