@@ -63,3 +63,108 @@ Each approach offers different levels of flexibility and effort:
 - **Proposal-3** is the **simplest** with minimal effort on our side.  
 
 Would you like a diagram to visualize these approaches? 🚀
+
+
+Creating a **CICS connection in WildFly** typically involves configuring a JCA (Java Connector Architecture) resource adapter to connect to CICS using **IBM CICS Transaction Gateway (CTG)** or an appropriate JCA adapter. Here's a step-by-step guide:
+
+### **1. Prerequisites**
+- Install **IBM CICS Transaction Gateway (CTG)** on your system.
+- Ensure **WildFly** is installed and running.
+- Have the **CICS Resource Adapter (JCA .rar file)** from IBM.
+
+### **2. Deploy the CICS JCA Adapter**
+1. **Obtain the JCA Adapter**  
+   - Download the **IBM CICS Transaction Gateway resource adapter** (`cicseci.rar`) from IBM.
+   
+2. **Copy the JCA Adapter to WildFly**  
+   - Place the `.rar` file in the WildFly deployments folder:  
+     ```
+     cp cicseci.rar $WILDFLY_HOME/standalone/deployments/
+     ```
+
+3. **Verify Deployment**  
+   - Start WildFly and check the logs to confirm that the adapter is deployed:  
+     ```
+     tail -f $WILDFLY_HOME/standalone/log/server.log
+     ```
+
+### **3. Configure the CICS Connection in WildFly**
+Edit the `standalone.xml` (or `domain.xml` if running in domain mode) and add a resource adapter configuration.
+
+#### **Example JCA Configuration in `standalone.xml`**
+Add the following inside the `<subsystem xmlns="urn:jboss:domain:resource-adapters:5.0">` section:
+
+```xml
+<subsystem xmlns="urn:jboss:domain:resource-adapters:5.0">
+    <resource-adapters>
+        <resource-adapter id="CICSAdapter">
+            <archive>
+                cicseci.rar
+            </archive>
+            <transaction-support>XATransaction</transaction-support>
+            <config-property name="server">CICS_HOSTNAME</config-property>
+            <config-property name="port">CICS_PORT</config-property>
+            <config-property name="userid">CICS_USER</config-property>
+            <config-property name="password">CICS_PASSWORD</config-property>
+            <connection-definitions>
+                <connection-definition class-name="com.ibm.connector2.cics.ECIManagedConnectionFactory"
+                                      jndi-name="java:/eis/CICSConnection" pool-name="CICSPool">
+                    <pool>
+                        <min-pool-size>1</min-pool-size>
+                        <max-pool-size>10</max-pool-size>
+                    </pool>
+                    <security>
+                        <application />
+                    </security>
+                </connection-definition>
+            </connection-definitions>
+        </resource-adapter>
+    </resource-adapters>
+</subsystem>
+```
+
+### **4. Restart WildFly**
+```
+$WILDFLY_HOME/bin/standalone.sh -c standalone.xml
+```
+
+### **5. Access CICS Connection in Java**
+Use JNDI to look up the CICS connection and make ECI (External Call Interface) requests.
+
+#### **Example Java Code:**
+```java
+import javax.naming.Context;
+import javax.naming.InitialContext;
+import javax.resource.cci.Connection;
+import javax.resource.cci.ConnectionFactory;
+
+public class CICSConnectionExample {
+    public static void main(String[] args) {
+        try {
+            Context ctx = new InitialContext();
+            ConnectionFactory factory = (ConnectionFactory) ctx.lookup("java:/eis/CICSConnection");
+            Connection connection = factory.getConnection();
+            
+            System.out.println("CICS Connection Established!");
+
+            connection.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### **6. Test the Connection**
+- Deploy your Java application to WildFly.
+- Check logs for any errors.
+- If successful, you should see **"CICS Connection Established!"** in the logs.
+
+---
+
+### **Troubleshooting**
+- Ensure **CICS Transaction Gateway (CTG)** is running.
+- Check `server.log` for deployment or connection issues.
+- Verify **firewall rules** allow traffic between WildFly and CICS.
+
+Would you like help debugging a specific issue?
