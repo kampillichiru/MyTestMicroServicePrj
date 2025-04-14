@@ -1,170 +1,130 @@
-<GlobalNamingResources>
-    <Resource name="jdbc/DB2DataSource"
-              auth="Container"
-              type="javax.sql.DataSource"
-              driverClassName="com.ibm.db2.jcc.DB2Driver"
-              url="jdbc:db2://your-db-host:50000/yourDB"
-              username="dbuser"
-              password="dbpassword"
-              maxTotal="50"
-              maxIdle="10"
-              maxWaitMillis="30000"/>
-</GlobalNamingResources>
-
-
-Here's your **grammatically corrected and simplified proposal** for better readability and clarity:  
+Here's the updated **AI/ML Training Roadmap for Core Banking System** PowerPoint layout that includes **AI, Large Language Models (LLMs), and Agents** with use cases for each topic. This will help you focus on the incorporation of LLMs and AI agents into the core banking system while training for different levels of expertise.
 
 ---
 
-# **Proposal: Deploying MYA.jar in a Kubernetes Environment**  
-
-## **Current Understanding**  
-Our product will package `myTest.war` inside a Docker image and use **WildFly** for deployment within the container.  
-
----
-
-## **Proposed Approaches**  
-
-### **Proposal-1: Using Persistent Volume**  
-1. **Create a Persistent Volume (PV)** in our Kubernetes namespace.  
-2. **Set up a GitHub Actions workflow** to copy `MYA.jar` to the Persistent Volume.  
-3. **Coordinate with the My Product team** to mount the Persistent Volume to the Pod when building the Docker image.  
-4. **Ensure the mounting path is included in the classpath**, similar to how WebSphere Application Server (WAS) handles shared libraries.  
-5. **Use Kubernetes volume mounting** as an alternative approach.  
-6. **Minimal changes required** for both My Product and our team.  
-7. When **MyApp triggers an event, it will invoke `MYA.jar` locally**.  
-8. `MYA.jar` will **expose a REST API** for further processing.  
+### **Slide 1: Title Slide**
+- **Title**: AI/ML Training Roadmap for Core Banking System
+- **Subtitle**: Beginner → Intermediate → Expert | Targeted for Java/.NET Developers
 
 ---
 
-### **Proposal-2: Embedding MYA.jar in the Docker Image**  
-1. **Add `MYA.jar` to the existing Docker image**.  
-2. **Rebuild the Docker image** based on the My Product team’s image using GitHub Actions.  
-3. **Push the updated Docker image to Harbor** (container registry).  
-4. **Deploy the updated image from Harbor** using GitHub Actions.  
+### **Slide 2: Beginner Level: Foundations (4–6 weeks)**  
+**Goal**: Build foundation in Python, Data Science & ML  
+**Topics**:
+- **Python Basics**: Syntax, functions, loops, OOP
+- **Data Handling**: Pandas, Numpy
+- **Data Visualization**: Matplotlib, Seaborn
+- **Statistics**: Descriptive statistics, correlation, regression basics
+- **Introduction to ML**: Supervised vs Unsupervised Learning, basic models (Logistic Regression, Decision Trees, etc.)
+- **Introduction to AI**: Basic concepts of Artificial Intelligence, problem-solving using AI
+
+**Tools**:
+- Jupyter, Google Colab
+- scikit-learn, seaborn, matplotlib
+
+**Project**:  
+- Loan default prediction model  
+- Customer churn analysis
 
 ---
 
-### **Proposal-3: Minimal Change Approach**  
-1. **MYA.jar will only contain REST API call logic**.  
-2. **No significant changes in request/response structure**.  
-3. **Code modifications will be rare**.  
-4. **Share `MYA.jar` with the My Product team**.  
-5. **My Product team will add `MYA.jar` to the classpath and build the Docker image**.  
-6. **No changes required from our team**.  
-7. **Only minor configuration changes needed for the My Product team**.  
+### **Slide 3: Intermediate Level: Applied AI for Banking (6–8 weeks)**  
+**Goal**: OCR, NLP, Classification on Documents, and Introduction to Large Language Models (LLMs)  
+**Topics**:
+- **OCR (Tesseract)**: Convert scanned documents to text
+- **Text Preprocessing**: Tokenization, Lemmatization (spaCy), Regex for text extraction
+- **Named Entity Recognition (NER)**: Extract important entities (e.g., SWIFT/BIC codes, dates, amounts)
+- **Text Classification**: Using TF-IDF, Word Embeddings, BERT for document classification
+- **Introduction to LLMs**: Overview of Large Language Models, their capabilities for document understanding and summarization
+- **AI Agents**: Basic introduction to AI agents for automating decision-making and processes (e.g., trade document processing, KYC reviews)
+
+**Tools**:
+- Tesseract, pytesseract
+- spaCy, NLTK
+- Hugging Face, Transformers, BERT
+
+**Use Cases**:
+- **OCR**: Auto-fill trade documents, loan application forms
+- **NLP**: Automated document classification for invoices, compliance checks, and KYC
+- **LLMs**: Summarization of trade agreements, regulatory documents
+- **AI Agents**: Auto-decisioning for loan approval or compliance checks
+
+**Project**:  
+- Build OCR + NLP pipeline for trade finance document extraction
+- Implement a simple document summarizer using a pre-trained LLM (e.g., GPT-3)
 
 ---
 
-## **Conclusion**  
-Each approach offers different levels of flexibility and effort:  
-- **Proposal-1** ensures **dynamic updates** via Persistent Volume.  
-- **Proposal-2** offers **tighter integration** by embedding the JAR in the Docker image.  
-- **Proposal-3** is the **simplest** with minimal effort on our side.  
+### **Slide 4: Expert Level: Production AI & MLOps (8–10 weeks)**  
+**Goal**: Deploy enterprise-grade ML systems, incorporate Large Language Models (LLMs) and AI Agents into workflows  
+**Topics**:
+- **Advanced NLP**: Fine-tuning BERT, GPT-3, or other LLMs for specific financial use cases (e.g., trade finance document classification)
+- **MLOps**: Implement CI/CD for machine learning, model versioning (MLflow, DVC), model monitoring and retraining
+- **FastAPI for ML Models**: Expose trained models via REST APIs for integration with core banking systems
+- **AI Agents in Production**: Implementing autonomous agents for compliance checking, document review, and decision-making processes
+- **Model Monitoring**: Monitor models for performance degradation and data drift using tools like Prometheus, MLflow, and custom pipelines
+- **Real-time AI**: Setting up real-time inference pipelines using Kafka or similar streaming technologies
+  
+**Tools**:
+- Transformers, Hugging Face
+- FastAPI, Flask, MLflow
+- Kafka, Airflow, Prometheus
 
-Would you like a diagram to visualize these approaches? 🚀
+**Use Cases**:
+- **LLMs in Core Banking**: Real-time document classification, contract analysis, regulatory compliance checks
+- **AI Agents**: Automated trade validation, loan approvals based on automated decision trees and deep learning models
+- **MLOps**: Scalable deployment and monitoring of financial models, ensuring compliance and risk management are always updated
 
-
-Creating a **CICS connection in WildFly** typically involves configuring a JCA (Java Connector Architecture) resource adapter to connect to CICS using **IBM CICS Transaction Gateway (CTG)** or an appropriate JCA adapter. Here's a step-by-step guide:
-
-### **1. Prerequisites**
-- Install **IBM CICS Transaction Gateway (CTG)** on your system.
-- Ensure **WildFly** is installed and running.
-- Have the **CICS Resource Adapter (JCA .rar file)** from IBM.
-
-### **2. Deploy the CICS JCA Adapter**
-1. **Obtain the JCA Adapter**  
-   - Download the **IBM CICS Transaction Gateway resource adapter** (`cicseci.rar`) from IBM.
-   
-2. **Copy the JCA Adapter to WildFly**  
-   - Place the `.rar` file in the WildFly deployments folder:  
-     ```
-     cp cicseci.rar $WILDFLY_HOME/standalone/deployments/
-     ```
-
-3. **Verify Deployment**  
-   - Start WildFly and check the logs to confirm that the adapter is deployed:  
-     ```
-     tail -f $WILDFLY_HOME/standalone/log/server.log
-     ```
-
-### **3. Configure the CICS Connection in WildFly**
-Edit the `standalone.xml` (or `domain.xml` if running in domain mode) and add a resource adapter configuration.
-
-#### **Example JCA Configuration in `standalone.xml`**
-Add the following inside the `<subsystem xmlns="urn:jboss:domain:resource-adapters:5.0">` section:
-
-```xml
-<subsystem xmlns="urn:jboss:domain:resource-adapters:5.0">
-    <resource-adapters>
-        <resource-adapter id="CICSAdapter">
-            <archive>
-                cicseci.rar
-            </archive>
-            <transaction-support>XATransaction</transaction-support>
-            <config-property name="server">CICS_HOSTNAME</config-property>
-            <config-property name="port">CICS_PORT</config-property>
-            <config-property name="userid">CICS_USER</config-property>
-            <config-property name="password">CICS_PASSWORD</config-property>
-            <connection-definitions>
-                <connection-definition class-name="com.ibm.connector2.cics.ECIManagedConnectionFactory"
-                                      jndi-name="java:/eis/CICSConnection" pool-name="CICSPool">
-                    <pool>
-                        <min-pool-size>1</min-pool-size>
-                        <max-pool-size>10</max-pool-size>
-                    </pool>
-                    <security>
-                        <application />
-                    </security>
-                </connection-definition>
-            </connection-definitions>
-        </resource-adapter>
-    </resource-adapters>
-</subsystem>
-```
-
-### **4. Restart WildFly**
-```
-$WILDFLY_HOME/bin/standalone.sh -c standalone.xml
-```
-
-### **5. Access CICS Connection in Java**
-Use JNDI to look up the CICS connection and make ECI (External Call Interface) requests.
-
-#### **Example Java Code:**
-```java
-import javax.naming.Context;
-import javax.naming.InitialContext;
-import javax.resource.cci.Connection;
-import javax.resource.cci.ConnectionFactory;
-
-public class CICSConnectionExample {
-    public static void main(String[] args) {
-        try {
-            Context ctx = new InitialContext();
-            ConnectionFactory factory = (ConnectionFactory) ctx.lookup("java:/eis/CICSConnection");
-            Connection connection = factory.getConnection();
-            
-            System.out.println("CICS Connection Established!");
-
-            connection.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-}
-```
-
-### **6. Test the Connection**
-- Deploy your Java application to WildFly.
-- Check logs for any errors.
-- If successful, you should see **"CICS Connection Established!"** in the logs.
+**Project**:  
+- Full end-to-end deployment of a FinBERT-based document classifier integrated with core banking services.
+- AI agent to auto-approve low-risk loans with real-time data processing
 
 ---
 
-### **Troubleshooting**
-- Ensure **CICS Transaction Gateway (CTG)** is running.
-- Check `server.log` for deployment or connection issues.
-- Verify **firewall rules** allow traffic between WildFly and CICS.
+### **Slide 5: Summary Table**  
+| **Level** | **Focus** | **Key Tools** | **Sample Project** | **Use Case** |
+|-----------|-----------|---------------|--------------------|--------------|
+| **Beginner** | Python, EDA, Regression, Introduction to AI | pandas, sklearn | Loan Default Model | Basic predictions like loan defaults |
+| **Intermediate** | OCR, NLP, NER, Introduction to LLMs | spaCy, Tesseract, Hugging Face | Document Extractor for Trade Finance | Summarizing, extracting fields from documents |
+| **Expert** | MLOps, LLM, Monitoring, AI Agents | MLflow, FastAPI, Kafka, Prometheus | FinBERT Doc Classifier | Real-time document classification and decision-making |
 
-Would you like help debugging a specific issue?
+---
+
+### **Slide 6: Suggested Learning Resources**  
+- **Beginner**:  
+  - [IBM Data Science Professional Certificate (Coursera)](https://www.coursera.org/professional-certificates/ibm-data-science)
+  - [Kaggle Tutorials](https://www.kaggle.com/learn)
+  
+- **Intermediate**:  
+  - [Hugging Face Course](https://huggingface.co/course)
+  - [FastAI NLP Course](https://www.fast.ai/)
+  
+- **Expert**:  
+  - [MLOps Zoomcamp (DataTalks)](https://github.com/DataTalksClub/mlops-zoomcamp)
+  - [Full Stack Deep Learning](https://fullstackdeeplearning.com/)
+
+---
+
+### **Slide 7: Milestones and Expectations**
+| **Milestone** | **Expectations** | **Outcome** |
+|---------------|------------------|-------------|
+| **End of Beginner** | Understand Python basics, work with simple ML models | Built a simple predictive model (loan default) |
+| **End of Intermediate** | Master OCR, NLP, Named Entity Recognition | Build an OCR-NLP pipeline for document extraction |
+| **End of Expert** | Deploy and monitor AI systems, understand AI Agents | Full MLOps pipeline with real-time ML deployment and monitoring |
+
+---
+
+### **Slide 8: AI & LLMs in Core Banking Use Cases**
+- **AI in Core Banking**:  
+  - **Customer Service Automation**: AI chatbots to handle customer queries.
+  - **Fraud Detection**: Using AI to detect unusual transactions based on historical data.
+  - **Document Processing**: LLMs to extract, classify, and summarize content from regulatory documents, contracts, and financial reports.
+  
+- **AI Agents in Banking**:  
+  - **Trade Finance**: AI agents reviewing trade documents for compliance, making decisions on approval or rejection.
+  - **Loan Approvals**: Automating loan approval decisions based on credit history, financials, and risk assessment.
+  - **Regulatory Compliance**: AI agents continuously scan transactions to ensure they comply with the latest regulations.
+
+---
+
+This layout incorporates AI, LLMs, and AI agents, providing a comprehensive roadmap for upskilling your team in these technologies. Would you like me to create the PowerPoint file for you?
