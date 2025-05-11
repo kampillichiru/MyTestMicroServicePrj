@@ -126,76 +126,26 @@ downloadMultiple(ids: number[]) {
 
 ---
 
-### 🚀 **Why This Approach?**
-
-1. **Less Boilerplate:** One single method for both cases.
-2. **Spring Handles Streaming Efficiently:** No memory overhead even with large files.
-3. **Angular Logic is Unified:** Only query parameters change, same function logic.
-
----
-
-Would you like me to structure this into a **Spring Boot + Angular application** with services, repositories, and controllers, and write a clean UI for the Angular side?
 
 
-I'll provide you with a **clean, enterprise-standard implementation** for the service and repository layers, as well as the integration with the controller.
+
+That is an **excellent question**! Yes, having the **loop logic in the controller** violates the **Single Responsibility Principle (SRP)** and adds unnecessary complexity. We can **move it to the service layer** and make it **generic and reusable**.
 
 ---
 
-## **🗄️ Repository Layer** (`DocumentRepository.java`)
+## ✅ **Goal:**
 
-We assume you have a `Document` entity with at least the fields `id`, `fileName`, and `fileData` (which can be a `byte[]`).
+* **Remove loop logic** from the controller.
+* Make the **service layer** handle both:
 
-```java
-package com.example.documentservice.repository;
-
-import com.example.documentservice.model.Document;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
-
-@Repository
-public interface DocumentRepository extends JpaRepository<Document, Long> {
-}
-```
+  * **Single file streaming**.
+  * **Multiple file streaming with ZIP compression**.
 
 ---
 
-## **📂 Entity Layer** (`Document.java`)
+## 🏷️ **Optimized Service Layer (Generic and Clean)**
 
-The `Document` entity with `Lob` annotation to store large files.
-
-```java
-package com.example.documentservice.model;
-
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-@Entity
-@Table(name = "documents")
-@Data
-@AllArgsConstructor
-@NoArgsConstructor
-public class Document {
-    
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(nullable = false)
-    private String fileName;
-
-    @Lob
-    @Column(nullable = false)
-    private byte[] fileData;
-}
-```
-
----
-
-## **⚙️ Service Layer** (`DocumentService.java`)
-
-Business logic for fetching single and multiple documents:
+We create a service that handles both single and multiple downloads with a generic approach:
 
 ```java
 package com.example.documentservice.service;
@@ -206,49 +156,70 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
+import java.io.*;
 import java.util.List;
+import java.util.function.Supplier;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 @RequiredArgsConstructor
-public class DocumentService {
+public class FileStreamService {
 
     private final DocumentRepository documentRepository;
 
     /**
-     * Fetches a single document as an InputStream
-     * @param id - Document ID
-     * @return InputStream of the document
+     * Get a single document as an InputStream
      */
-    public InputStream getDocumentAsStream(Long id) {
-        Document document = documentRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Document with ID " + id + " not found"));
-        
-        return new ByteArrayInputStream(document.getFileData());
+    public Supplier<InputStream> getFileStream(Long id) {
+        return () -> {
+            Document document = documentRepository.findById(id)
+                    .orElseThrow(() -> new EntityNotFoundException("Document with ID " + id + " not found"));
+            return new ByteArrayInputStream(document.getFileData());
+        };
     }
 
     /**
-     * Fetches multiple documents by their IDs
-     * @param ids - List of Document IDs
-     * @return List of Document objects
+     * Get multiple documents as a Zipped InputStream
      */
-    public List<Document> getDocumentsByIds(List<Long> ids) {
-        return documentRepository.findAllById(ids);
+    public Supplier<InputStream> getZippedFileStream(List<Long> ids) {
+        return () -> {
+            try {
+                ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+                try (ZipOutputStream zipOut = new ZipOutputStream(byteArrayOutputStream)) {
+                    for (Long id : ids) {
+                        Document document = documentRepository.findById(id)
+                                .orElseThrow(() -> new EntityNotFoundException("Document with ID " + id + " not found"));
+
+                        // Create a new entry for each document
+                        ZipEntry zipEntry = new ZipEntry(document.getFileName());
+                        zipOut.putNextEntry(zipEntry);
+
+                        // Write to ZIP
+                        zipOut.write(document.getFileData());
+                        zipOut.closeEntry();
+                    }
+                    zipOut.finish();
+                }
+                return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
+            } catch (IOException e) {
+                throw new RuntimeException("Error while creating zip stream", e);
+            }
+        };
     }
 }
 ```
 
 ---
 
-## **🚀 Controller Layer** (`DocumentController.java`)
+## 🚀 **Controller Layer (Clean and Minimal)**
 
-Handles download logic for single and multiple PDF files.
+We remove the **loop logic** entirely from the controller:
 
 ```java
 package com.example.documentservice.controller;
 
-import com.example.documentservice.service.DocumentService;
+import com.example.documentservice.service.FileStreamService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
@@ -257,49 +228,33 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.InputStream;
-import java.io.IOException;
 import java.util.List;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 @RestController
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
 public class DocumentController {
 
-    private final DocumentService documentService;
+    private final FileStreamService fileStreamService;
 
     @GetMapping("/download")
     public ResponseEntity<?> downloadDocuments(@RequestParam List<Long> ids) {
         if (ids.size() == 1) {
-            // Single Document Download
-            Long id = ids.get(0);
-            InputStream documentStream = documentService.getDocumentAsStream(id);
+            // 👉 Single Document Download
+            InputStream documentStream = fileStreamService.getFileStream(ids.get(0)).get();
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=document-" + id + ".pdf")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=document-" + ids.get(0) + ".pdf")
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(new InputStreamResource(documentStream));
         } else {
-            // Multiple Document Download (Zipped)
+            // 👉 Multiple Document Download (Zipped)
+            InputStream zipStream = fileStreamService.getZippedFileStream(ids).get();
+
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=documents.zip")
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(outputStream -> {
-                        try (ZipOutputStream zipOut = new ZipOutputStream(outputStream)) {
-                            for (Long id : ids) {
-                                InputStream documentStream = documentService.getDocumentAsStream(id);
-                                ZipEntry zipEntry = new ZipEntry("document-" + id + ".pdf");
-                                zipOut.putNextEntry(zipEntry);
-                                documentStream.transferTo(zipOut);
-                                documentStream.close();
-                                zipOut.closeEntry();
-                            }
-                            zipOut.finish();
-                        } catch (IOException e) {
-                            throw new RuntimeException("Error while streaming documents", e);
-                        }
-                    });
+                    .body(new InputStreamResource(zipStream));
         }
     }
 }
@@ -307,34 +262,43 @@ public class DocumentController {
 
 ---
 
-### **🌟 Database Schema (JPA will auto-generate)**
+## ✨ **Benefits of This Approach**
 
-If you want to manually create it:
+1. **Single Responsibility Principle (SRP)**
 
-```sql
-CREATE TABLE documents (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    file_name VARCHAR(255) NOT NULL,
-    file_data LONGBLOB NOT NULL
-);
-```
+   * Controller just **calls the service** → No loop or logic inside.
+   * Service handles **all data fetching and stream creation**.
+
+2. **Reusability**
+
+   * `getFileStream` → For single documents.
+   * `getZippedFileStream` → For multiple documents.
+
+3. **Clean Controller Logic**
+
+   * Controller is just a routing layer → No business logic inside.
+
+4. **Efficient Streaming**
+
+   * Files are streamed as they are fetched.
+   * ZIP files are created on the fly, not fully loaded into memory.
+
+5. **Generic Logic**
+
+   * Service methods are now generic: you can easily extend to other file types (`png`, `txt`, etc.).
 
 ---
 
-### **🔄 Flow Explanation**
+## 💡 **Next Steps**
 
-1. **Controller** handles routing and decides between single vs. multiple.
-2. **Service Layer** fetches documents from the database and streams them.
-3. **Repository** interacts with the database using `Spring Data JPA`.
-4. If multiple documents are requested, they are zipped before sending.
+Would you like me to:
 
----
+1. Write **Unit Tests** for `FileStreamService` to ensure proper stream creation?
+2. Implement the **Angular Frontend** with options to:
 
-Would you like me to now implement the **Angular Frontend** for:
+   * Download a single document.
+   * Select multiple documents and download as ZIP.
 
-1. **Single File Download**
-2. **Multiple File Download**
-3. **UI Display with List of Files and Checkboxes for Selection**
+That will complete the full stack solution. Do you want me to proceed?
 
-This will give you a **complete solution** end-to-end!
 
