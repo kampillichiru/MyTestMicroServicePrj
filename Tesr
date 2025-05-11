@@ -135,3 +135,206 @@ downloadMultiple(ids: number[]) {
 ---
 
 Would you like me to structure this into a **Spring Boot + Angular application** with services, repositories, and controllers, and write a clean UI for the Angular side?
+
+
+I'll provide you with a **clean, enterprise-standard implementation** for the service and repository layers, as well as the integration with the controller.
+
+---
+
+## **🗄️ Repository Layer** (`DocumentRepository.java`)
+
+We assume you have a `Document` entity with at least the fields `id`, `fileName`, and `fileData` (which can be a `byte[]`).
+
+```java
+package com.example.documentservice.repository;
+
+import com.example.documentservice.model.Document;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface DocumentRepository extends JpaRepository<Document, Long> {
+}
+```
+
+---
+
+## **📂 Entity Layer** (`Document.java`)
+
+The `Document` entity with `Lob` annotation to store large files.
+
+```java
+package com.example.documentservice.model;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Entity
+@Table(name = "documents")
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class Document {
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String fileName;
+
+    @Lob
+    @Column(nullable = false)
+    private byte[] fileData;
+}
+```
+
+---
+
+## **⚙️ Service Layer** (`DocumentService.java`)
+
+Business logic for fetching single and multiple documents:
+
+```java
+package com.example.documentservice.service;
+
+import com.example.documentservice.model.Document;
+import com.example.documentservice.repository.DocumentRepository;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class DocumentService {
+
+    private final DocumentRepository documentRepository;
+
+    /**
+     * Fetches a single document as an InputStream
+     * @param id - Document ID
+     * @return InputStream of the document
+     */
+    public InputStream getDocumentAsStream(Long id) {
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Document with ID " + id + " not found"));
+        
+        return new ByteArrayInputStream(document.getFileData());
+    }
+
+    /**
+     * Fetches multiple documents by their IDs
+     * @param ids - List of Document IDs
+     * @return List of Document objects
+     */
+    public List<Document> getDocumentsByIds(List<Long> ids) {
+        return documentRepository.findAllById(ids);
+    }
+}
+```
+
+---
+
+## **🚀 Controller Layer** (`DocumentController.java`)
+
+Handles download logic for single and multiple PDF files.
+
+```java
+package com.example.documentservice.controller;
+
+import com.example.documentservice.service.DocumentService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.io.InputStream;
+import java.io.IOException;
+import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
+@RestController
+@RequestMapping("/api/documents")
+@RequiredArgsConstructor
+public class DocumentController {
+
+    private final DocumentService documentService;
+
+    @GetMapping("/download")
+    public ResponseEntity<?> downloadDocuments(@RequestParam List<Long> ids) {
+        if (ids.size() == 1) {
+            // Single Document Download
+            Long id = ids.get(0);
+            InputStream documentStream = documentService.getDocumentAsStream(id);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=document-" + id + ".pdf")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(new InputStreamResource(documentStream));
+        } else {
+            // Multiple Document Download (Zipped)
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=documents.zip")
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(outputStream -> {
+                        try (ZipOutputStream zipOut = new ZipOutputStream(outputStream)) {
+                            for (Long id : ids) {
+                                InputStream documentStream = documentService.getDocumentAsStream(id);
+                                ZipEntry zipEntry = new ZipEntry("document-" + id + ".pdf");
+                                zipOut.putNextEntry(zipEntry);
+                                documentStream.transferTo(zipOut);
+                                documentStream.close();
+                                zipOut.closeEntry();
+                            }
+                            zipOut.finish();
+                        } catch (IOException e) {
+                            throw new RuntimeException("Error while streaming documents", e);
+                        }
+                    });
+        }
+    }
+}
+```
+
+---
+
+### **🌟 Database Schema (JPA will auto-generate)**
+
+If you want to manually create it:
+
+```sql
+CREATE TABLE documents (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    file_name VARCHAR(255) NOT NULL,
+    file_data LONGBLOB NOT NULL
+);
+```
+
+---
+
+### **🔄 Flow Explanation**
+
+1. **Controller** handles routing and decides between single vs. multiple.
+2. **Service Layer** fetches documents from the database and streams them.
+3. **Repository** interacts with the database using `Spring Data JPA`.
+4. If multiple documents are requested, they are zipped before sending.
+
+---
+
+Would you like me to now implement the **Angular Frontend** for:
+
+1. **Single File Download**
+2. **Multiple File Download**
+3. **UI Display with List of Files and Checkboxes for Selection**
+
+This will give you a **complete solution** end-to-end!
+
