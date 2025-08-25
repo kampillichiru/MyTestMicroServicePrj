@@ -1,0 +1,6 @@
+image:
+  repository: myacr.azurecr.io/microservice-3
+  tag: latest
+replicaCount: 2
+env:
+  SPRING_PROFILES_ACTIVE: "TST"
