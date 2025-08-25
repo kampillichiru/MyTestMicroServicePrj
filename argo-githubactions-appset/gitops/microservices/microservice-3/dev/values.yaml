@@ -1,0 +1,6 @@
+image:
+  repository: myacr.azurecr.io/microservice-3
+  tag: latest
+replicaCount: 1
+env:
+  SPRING_PROFILES_ACTIVE: "DEV"

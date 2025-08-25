@@ -1,0 +1,45 @@
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: microservices
+  namespace: argocd
+spec:
+  generators:
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - service: microservice-1
+                  namespace: ms1
+                - service: microservice-2
+                  namespace: ms2
+                - service: microservice-3
+                  namespace: ms3
+          - list:
+              elements:
+                - env: dev
+                - env: tst
+                - env: uat
+                - env: prod
+  template:
+    metadata:
+      name: '{{service}}-{{env}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/your-org/your-gitops-repo.git   # <-- CHANGE ME
+        targetRevision: main
+        path: gitops/charts/app-chart
+        helm:
+          valueFiles:
+            - ../../microservices/{{service}}/{{env}}/values.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}-{{env}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

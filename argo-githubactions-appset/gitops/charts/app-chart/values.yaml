@@ -1,0 +1,11 @@
+replicaCount: 1
+image:
+  repository: myacr.azurecr.io/replace-me
+  tag: latest
+  pullPolicy: IfNotPresent
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+resources: {}
+env: {}
