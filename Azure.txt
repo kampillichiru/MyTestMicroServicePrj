@@ -1,89 +1,25 @@
-1️⃣ Reusable Workflow (.github/workflows/update-gitops.yaml)
-name: Update GitOps for Deployment
+{{/*
+Expand the name of the chart.
+*/}}
+{{- define "app-chart.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end }}
 
-on:
-  workflow_call:
-    inputs:
-      serviceName:
-        required: true
-        type: string
-      imageTag:
-        required: true
-        type: string
-      environment:
-        required: true
-        type: string   # dev, tst, uat, prod
+{{/*
+Create a default fully qualified app name.
+*/}}
+{{- define "app-chart.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
 
-jobs:
-  update-gitops:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout GitOps repo
-        uses: actions/checkout@v4
-        with:
-          repository: my-org/gitops-repo
-          token: ${{ secrets.GITOPS_TOKEN }}
-          path: gitops
-
-      - name: Update values.yaml
-        run: |
-          cd gitops/microservices/${{ inputs.serviceName }}/${{ inputs.environment }}
-          yq -i ".image.tag = \"${{ inputs.imageTag }}\"" values.yaml
-
-      - name: Commit & Push changes
-        run: |
-          cd gitops
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add .
-          git commit -m "Deploy ${{ inputs.serviceName }}:${{ inputs.imageTag }} to ${{ inputs.environment }}"
-          git push
-
-
-
-
-
-
-2️⃣ Service-Specific Workflow (e.g., in MicroService-1 repo)
-name: Deploy MicroService-1
-
-on:
-  workflow_dispatch:  # manual trigger
-    inputs:
-      environment:
-        description: "Target environment"
-        required: true
-        type: choice
-        options:
-          - dev
-          - tst
-          - uat
-          - prod
-
-jobs:
-  deploy:
-    uses: my-org/shared-workflows/.github/workflows/update-gitops.yaml@main
-    with:
-      serviceName: "microservice-1"
-      environment: ${{ github.event.inputs.environment }}
-      imageTag: ${{ github.sha }}   # Or from CI output
-
-
-
-apiVersion: v1
-kind: Secret
-metadata:
-  name: github-app-creds
-  namespace: argocd
-  labels:
-    argocd.argoproj.io/secret-type: repository
-stringData:
-  url: https://github.com/<your-org>/<repo>.git
-  githubAppPrivateKey: |
-    -----BEGIN RSA PRIVATE KEY-----
-    <paste .pem contents>
-    -----END RSA PRIVATE KEY-----
-  githubAppId: "<App ID>"
-  githubAppInstallationId: "<Installation ID>"
-
-
+{{/*
+Chart name and version as used by the chart label.
+*/}}
+{{- define "app-chart.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
