@@ -10,6 +10,9 @@ on:
       imageTag:
         required: true
         type: string
+      environment:
+        required: true
+        type: string   # dev, tst, uat, prod
 
 jobs:
   update-gitops:
@@ -24,7 +27,7 @@ jobs:
 
       - name: Update values.yaml
         run: |
-          cd gitops/microservices/${{ inputs.serviceName }}
+          cd gitops/microservices/${{ inputs.serviceName }}/${{ inputs.environment }}
           yq -i ".image.tag = \"${{ inputs.imageTag }}\"" values.yaml
 
       - name: Commit & Push changes
@@ -33,7 +36,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add .
-          git commit -m "Update ${{ inputs.serviceName }} image to ${{ inputs.imageTag }}"
+          git commit -m "Deploy ${{ inputs.serviceName }}:${{ inputs.imageTag }} to ${{ inputs.environment }}"
           git push
 
 
@@ -45,13 +48,24 @@ jobs:
 name: Deploy MicroService-1
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:  # manual trigger
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - tst
+          - uat
+          - prod
 
 jobs:
   deploy:
     uses: my-org/shared-workflows/.github/workflows/update-gitops.yaml@main
     with:
       serviceName: "microservice-1"
-      imageTag: ${{ github.sha }}   # Or use CI pipeline output
+      environment: ${{ github.event.inputs.environment }}
+      imageTag: ${{ github.sha }}   # Or from CI output
+
+
