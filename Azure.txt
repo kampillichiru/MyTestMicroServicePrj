@@ -69,3 +69,21 @@ jobs:
       imageTag: ${{ github.sha }}   # Or from CI output
 
 
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-app-creds
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  url: https://github.com/<your-org>/<repo>.git
+  githubAppPrivateKey: |
+    -----BEGIN RSA PRIVATE KEY-----
+    <paste .pem contents>
+    -----END RSA PRIVATE KEY-----
+  githubAppId: "<App ID>"
+  githubAppInstallationId: "<Installation ID>"
+
+
