@@ -1,25 +1,28 @@
-{{/*
-Expand the name of the chart.
-*/}}
-{{- define "app-chart.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
-{{- end }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: microservice-1-dev
+  namespace: argocd   # ArgoCD control-plane namespace
+spec:
+  project: default
 
-{{/*
-Create a default fully qualified app name.
-*/}}
-{{- define "app-chart.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
+  # --- Where is your GitOps repo ---
+  source:
+    repoURL: 'https://github.com/your-org/your-repo.git'  # change
+    targetRevision: main                                  # branch name
+    path: gitops/charts/app-chart                         # Helm chart path
+    helm:
+      valueFiles:
+        - ../../microservices/microservice-1/dev/values.yaml
 
-{{/*
-Chart name and version as used by the chart label.
-*/}}
-{{- define "app-chart.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
-{{- end }}
+  # --- Where to deploy in cluster ---
+  destination:
+    server: https://kubernetes.default.svc  # in-cluster k8s API
+    namespace: microservice-1-dev           # namespace for MS1
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
