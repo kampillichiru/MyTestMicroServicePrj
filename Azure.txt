@@ -1,28 +1,24 @@
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: microservice-1-dev
-  namespace: argocd   # ArgoCD control-plane namespace
-spec:
-  project: default
+name: Deploy Microservice-1
 
-  # --- Where is your GitOps repo ---
-  source:
-    repoURL: 'https://github.com/your-org/your-repo.git'  # change
-    targetRevision: main                                  # branch name
-    path: gitops/charts/app-chart                         # Helm chart path
-    helm:
-      valueFiles:
-        - ../../microservices/microservice-1/dev/values.yaml
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (dev/tst/uat/prod)"
+        required: true
+        default: dev
 
-  # --- Where to deploy in cluster ---
-  destination:
-    server: https://kubernetes.default.svc  # in-cluster k8s API
-    namespace: microservice-1-dev           # namespace for MS1
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
 
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set environment variable
+        run: echo "ENVIRONMENT=${{ github.event.inputs.environment }}" >> $GITHUB_ENV
+
+      - name: Apply ApplicationSet
+        run: |
+          envsubst < gitops/argo-appset.yaml | kubectl apply -n app-argocd -f -
