@@ -1,0 +1,7 @@
+image:
+  repository: microservice-3
+  tag: latest
+service:
+  port: 80
+env:
+  ENV: prod
