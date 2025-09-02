@@ -1,5 +1,110 @@
-- name: Register GitHub Repo in ArgoCD
-  run: |
-    argocd repo add https://github.com/${{ github.repository }}.git \
-      --username ${{ secrets.GH_USER }} \
-      --password ${{ secrets.GH_PAT }}
+Got it ✅
+Since you’re using **`argo-githubactions-appset`** as the GitOps repo folder structure, I’ll prepare a **ready-to-use SecretProviderClass Helm template** that fits into your setup and is **easy to configure per environment**.
+
+---
+
+## 📂 GitOps Folder Structure (with Key Vault support)
+
+```
+argo-githubactions-appset/
+├─ .github/workflows/
+│  ├─ update-gitops.yaml               # reusable workflow
+│  ├─ deploy-microservice-1.yaml
+│  ├─ deploy-microservice-2.yaml
+├─ gitops/
+│  ├─ argo-appset.yaml                 # ApplicationSet definition
+│  ├─ charts/app/                      # Reusable Helm chart
+│  │  ├─ templates/
+│  │  │  ├─ deployment.yaml
+│  │  │  ├─ service.yaml
+│  │  │  ├─ secretproviderclass.yaml   # <-- CSI driver integration
+│  │  └─ values.yaml
+│  └─ microservices/
+│     └─ microservice-1/
+│        ├─ dev/values.yaml
+│        ├─ tst/values.yaml
+│        ├─ uat/values.yaml
+│        └─ prod/values.yaml
+```
+
+---
+
+## 🛠 `charts/app/templates/secretproviderclass.yaml`
+
+```yaml
+{{- if .Values.azureKeyVault.enabled }}
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: {{ include "app.fullname" . }}-akv
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "false"  # if using managed identity set this true
+    useVMManagedIdentity: "true"
+    userAssignedIdentityID: {{ .Values.azureKeyVault.userAssignedIdentityID | quote }}
+    keyvaultName: {{ .Values.azureKeyVault.name | quote }}
+    cloudName: "" # AzureCloud, AzureUSGovernment, AzureChinaCloud
+    objects: |
+      array:
+        - |
+          objectName: {{ .Values.azureKeyVault.secretName }}
+          objectType: secret
+    tenantId: {{ .Values.azureKeyVault.tenantId | quote }}
+{{- end }}
+```
+
+---
+
+## ⚙️ Example `values.yaml` per Environment
+
+### `gitops/microservices/microservice-1/dev/values.yaml`
+
+```yaml
+image:
+  repository: myacr.azurecr.io/microservice-1
+  tag: dev-latest
+
+azureKeyVault:
+  enabled: true
+  name: my-dev-keyvault
+  tenantId: "00000000-0000-0000-0000-000000000000"
+  userAssignedIdentityID: "11111111-1111-1111-1111-111111111111"
+  secretName: "db-connection-string"
+```
+
+### `gitops/microservices/microservice-1/prod/values.yaml`
+
+```yaml
+image:
+  repository: myacr.azurecr.io/microservice-1
+  tag: prod-latest
+
+azureKeyVault:
+  enabled: true
+  name: my-prod-keyvault
+  tenantId: "00000000-0000-0000-0000-000000000000"
+  userAssignedIdentityID: "22222222-2222-2222-2222-222222222222"
+  secretName: "db-connection-string"
+```
+
+---
+
+## 🔄 Flow with ArgoCD
+
+1. GitHub Action updates **image.tag** in `values.yaml` of a microservice/environment.
+2. ArgoCD syncs → renders Helm → deploys app **+ SecretProviderClass**.
+3. CSI driver mounts Key Vault secret at pod runtime.
+4. Deployment reads secrets from volume or env var.
+
+---
+
+## ✅ Advantages
+
+* **Reusable**: only update `values.yaml` per environment.
+* **Automated**: GitHub Actions just commits to repo, ArgoCD applies.
+* **Secure**: no secrets in GitHub Actions, all come from Key Vault at runtime.
+
+---
+
+👉 Do you also want me to include an **example Deployment manifest** (with secret volume mount + env var) that uses the Key Vault secret, so your pods actually consume it?
