@@ -90,21 +90,84 @@ azureKeyVault:
 
 ---
 
-## 🔄 Flow with ArgoCD
+✅ Exactly — your understanding is **spot on**.
+Right now your **SecretProviderClass** exists, but since you haven’t added the **CSI volume mount in your Deployment**, ArgoCD syncs the resource, but the secrets never get projected into the pod → which is why `/mnt/secrets-store/` is missing inside the container.
 
-1. GitHub Action updates **image.tag** in `values.yaml` of a microservice/environment.
-2. ArgoCD syncs → renders Helm → deploys app **+ SecretProviderClass**.
-3. CSI driver mounts Key Vault secret at pod runtime.
-4. Deployment reads secrets from volume or env var.
+So yes, the **missing link** is in `deployment.yaml`.
 
 ---
 
-## ✅ Advantages
+### 🔹 How it ties into your GitOps structure
 
-* **Reusable**: only update `values.yaml` per environment.
-* **Automated**: GitHub Actions just commits to repo, ArgoCD applies.
-* **Secure**: no secrets in GitHub Actions, all come from Key Vault at runtime.
+In your **Helm chart (`charts/app/templates/deployment.yaml`)**, you need to conditionally mount the secrets volume whenever `azureKeyVault.enabled=true`.
 
 ---
 
-👉 Do you also want me to include an **example Deployment manifest** (with secret volume mount + env var) that uses the Key Vault secret, so your pods actually consume it?
+## 🛠 `charts/app/templates/deployment.yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "app.fullname" . }}
+  labels:
+    app: {{ include "app.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "app.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "app.name" . }}
+    spec:
+      containers:
+        - name: {{ include "app.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          {{- if .Values.azureKeyVault.enabled }}
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+          {{- end }}
+      {{- if .Values.azureKeyVault.enabled }}
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "app.fullname" . }}-akv
+      {{- end }}
+```
+
+---
+
+### 🔹 Now with your example
+
+* When `azureKeyVault.enabled: true` in `values.yaml`, your pod gets:
+
+  * `/mnt/secrets-store/` populated with Key Vault secrets as **files**
+* When `azureKeyVault.enabled: false`, no CSI volume is injected → so deployment works without Key Vault.
+
+---
+
+### 🔹 Optional: Sync to Kubernetes Secret
+
+If you also want **ENV variables** support → extend `secretproviderclass.yaml` with `secretObjects`. Then in `deployment.yaml`, you can map to `envFrom.secretRef`.
+
+---
+
+👉 So yes:
+
+* `secretproviderclass.yaml` = defines how to pull from Key Vault.
+* `deployment.yaml` = actually mounts it into your pod.
+* ArgoCD will sync both since they’re part of the same Helm chart.
+
+---
+
+Do you want me to extend your **Helm chart skeleton** so that it supports **both file mount + Kubernetes Secret sync** (so microservices can choose whichever way they want via `values.yaml`)?
