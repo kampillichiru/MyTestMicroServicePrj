@@ -171,3 +171,18 @@ If you also want **ENV variables** support → extend `secretproviderclass.yaml`
 ---
 
 Do you want me to extend your **Helm chart skeleton** so that it supports **both file mount + Kubernetes Secret sync** (so microservices can choose whichever way they want via `values.yaml`)?
+
+
+ inputs:
+      create_rg: { default: "true" }
+      create_keyvault: { default: "true" }
+      create_postgres: { default: "true" }
+      create_aks: { default: "true" }
+      create_storage: { default: "false" }
+      create_redis: { default: "false" }
+      create_namespace: { default: "true" }
+      create_argocd: { default: "true" }
+      create_pgadmin: { default: "false" }
+      environment:
+        description: "Target environment (dev/tst/uat/prod)"
+        default: "dev"
