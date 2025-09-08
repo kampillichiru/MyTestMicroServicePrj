@@ -1,0 +1,27 @@
+name: Bootstrap Cluster
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        default: dev
+        type: choice
+        options: [dev, tst, uat, prod]
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Apply Namespaces
+        run: kubectl apply -f kubernetes/namespaces/
+      - name: Install ArgoCD
+        run: kubectl apply -n argocd -f kubernetes/argocd/install.yaml
+      - name: Deploy PGAdmin
+        run: kubectl apply -n apps -f kubernetes/pgadmin/deployment.yaml

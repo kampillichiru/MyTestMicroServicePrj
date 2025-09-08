@@ -1,0 +1,18 @@
+name: Deploy Postgres
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        default: dev
+        type: choice
+        options: [dev, tst, uat, prod]
+
+jobs:
+  postgres:
+    uses: ./.github/workflows/reusable/terraform.yaml
+    with:
+      working-directory: terraform/postgres
+      environment: ${{ github.event.inputs.environment }}
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
