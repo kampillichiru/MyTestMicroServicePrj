@@ -173,146 +173,35 @@ If you also want **ENV variables** support → extend `secretproviderclass.yaml`
 Do you want me to extend your **Helm chart skeleton** so that it supports **both file mount + Kubernetes Secret sync** (so microservices can choose whichever way they want via `values.yaml`)?
 
 
-on:
-  workflow_dispatch:
-    inputs:
-      create_rg:
-        description: "Create Resource Group (base infra container for all resources)"
-        default: "true"
-      create_keyvault:
-        description: "Create Azure Key Vault (secrets management)"
-        default: "true"
-      create_postgres:
-        description: "Create Azure Postgres Flexible Server (database)"
-        default: "true"
-      create_aks:
-        description: "Create AKS Cluster (Kubernetes workloads)"
-        default: "true"
-      create_storage:
-        description: "Create Azure Storage Account (blob/file storage)"
-        default: "false"
-      create_redis:
-        description: "Create Azure Cache for Redis (caching layer)"
-        default: "false"
-      create_namespace:
-        description: "Create Kubernetes namespaces (app + argocd namespaces)"
-        default: "true"
-      create_argocd:
-        description: "Install ArgoCD (GitOps engine for deployments)"
-        default: "true"
-      create_pgadmin:
-        description: "Deploy PGAdmin in AKS (Postgres management UI)"
-        default: "false"
-      environment:
-        description: "Target environment (dev, tst, uat, prod)"
-        default: "dev"
-------------------------------------------------------------------------------------------------
-provider "azurerm" {
-  features {}
-}
-
-resource "azurerm_resource_group" "storage" {
-  name     = var.rg_name
-  location = var.location
-}
-
-resource "azurerm_storage_account" "tfstate" {
-  name                     = var.storage_account_name
-  resource_group_name      = azurerm_resource_group.storage.name
-  location                 = azurerm_resource_group.storage.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  allow_blob_public_access = false
-}
-
-resource "azurerm_storage_container" "tfstate" {
-  name                  = "tfstate"
-  storage_account_name  = azurerm_storage_account.tfstate.name
-  container_access_type = "private"
-}
-
-output "storage_account_name" {
-  value = azurerm_storage_account.tfstate.name
-}
-
-output "container_name" {
-  value = azurerm_storage_container.tfstate.name
-}
-
-output "resource_group_name" {
-  value = azurerm_resource_group.storage.name
-}
-
-provider "azurerm" {
-  features {}
-}
-
-resource "azurerm_resource_group" "storage" {
-  name     = var.rg_name
-  location = var.location
-}
-
-resource "azurerm_storage_account" "tfstate" {
-  name                     = var.storage_account_name
-  resource_group_name      = azurerm_resource_group.storage.name
-  location                 = azurerm_resource_group.storage.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  allow_blob_public_access = false
-}
-
-resource "azurerm_storage_container" "tfstate" {
-  name                  = "tfstate"
-  storage_account_name  = azurerm_storage_account.tfstate.name
-  container_access_type = "private"
-}
-
-output "storage_account_name" {
-  value = azurerm_storage_account.tfstate.name
-}
-
-output "container_name" {
-  value = azurerm_storage_container.tfstate.name
-}
-
-output "resource_group_name" {
-  value = azurerm_resource_group.storage.name
-}
+charts/namespace/Chart.yaml
+apiVersion: v2
+name: namespace
+description: A reusable Helm chart to create Kubernetes namespaces
+type: application
+version: 0.1.0
+appVersion: "1.0"
 
 
-output:
-output "storage_account_name" {
-  description = "Storage Account used for Terraform state"
-  value       = azurerm_storage_account.tfstate.name
-}
-
-output "container_name" {
-  description = "Container used for Terraform state"
-  value       = azurerm_storage_container.tfstate.name
-}
-
-output "resource_group_name" {
-  description = "Resource Group containing the storage account"
-  value       = azurerm_resource_group.storage.name
-}
+Example environments/dev-values.yaml
+namespace:
+  name: app-dev
+  labels:
+    env: dev
+    owner: dev-team
+    project: payments
 
 
 
-
-variable "rg_name" {
-  type        = string
-  default     = "rg-tfstate"
-  description = "Resource Group for Terraform state storage"
-}
-
-variable "location" {
-  type        = string
-  default     = "eastus"
-  description = "Azure region for storage account"
-}
-
-variable "storage_account_name" {
-  type        = string
-  default     = "tfstatebootstrap123"
-  description = "Globally unique name for Terraform storage account"
-}
+charts/namespace/templates/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace.name }}
+  labels:
+    {{- if .Values.namespace.labels }}
+    {{- toYaml .Values.namespace.labels | nindent 4 }}
+    {{- end }}
+  annotations:
+    {{- if .Values.namespace.annotations }}
+    {{- toYaml .Values.namespace.annotations | nindent 4 }}
+    {{- end }}
