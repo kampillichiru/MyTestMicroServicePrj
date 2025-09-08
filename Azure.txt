@@ -298,3 +298,21 @@ output "resource_group_name" {
 
 
 
+
+variable "rg_name" {
+  type        = string
+  default     = "rg-tfstate"
+  description = "Resource Group for Terraform state storage"
+}
+
+variable "location" {
+  type        = string
+  default     = "eastus"
+  description = "Azure region for storage account"
+}
+
+variable "storage_account_name" {
+  type        = string
+  default     = "tfstatebootstrap123"
+  description = "Globally unique name for Terraform storage account"
+}
