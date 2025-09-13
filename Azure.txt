@@ -1,207 +1,63 @@
-Got it ✅
-Since you’re using **`argo-githubactions-appset`** as the GitOps repo folder structure, I’ll prepare a **ready-to-use SecretProviderClass Helm template** that fits into your setup and is **easy to configure per environment**.
+step1.yml
 
----
+name: Infra Setup
 
-## 📂 GitOps Folder Structure (with Key Vault support)
+on:
+  workflow_dispatch:
 
-```
-argo-githubactions-appset/
-├─ .github/workflows/
-│  ├─ update-gitops.yaml               # reusable workflow
-│  ├─ deploy-microservice-1.yaml
-│  ├─ deploy-microservice-2.yaml
-├─ gitops/
-│  ├─ argo-appset.yaml                 # ApplicationSet definition
-│  ├─ charts/app/                      # Reusable Helm chart
-│  │  ├─ templates/
-│  │  │  ├─ deployment.yaml
-│  │  │  ├─ service.yaml
-│  │  │  ├─ secretproviderclass.yaml   # <-- CSI driver integration
-│  │  └─ values.yaml
-│  └─ microservices/
-│     └─ microservice-1/
-│        ├─ dev/values.yaml
-│        ├─ tst/values.yaml
-│        ├─ uat/values.yaml
-│        └─ prod/values.yaml
-```
+jobs:
+  argocd-setup:
+    uses: ./.github/workflows/argocd-setup.yml
+    with:
+      environment: dev
 
----
-
-## 🛠 `charts/app/templates/secretproviderclass.yaml`
-
-```yaml
-{{- if .Values.azureKeyVault.enabled }}
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: {{ include "app.fullname" . }}-akv
-spec:
-  provider: azure
-  parameters:
-    usePodIdentity: "false"  # if using managed identity set this true
-    useVMManagedIdentity: "true"
-    userAssignedIdentityID: {{ .Values.azureKeyVault.userAssignedIdentityID | quote }}
-    keyvaultName: {{ .Values.azureKeyVault.name | quote }}
-    cloudName: "" # AzureCloud, AzureUSGovernment, AzureChinaCloud
-    objects: |
-      array:
-        - |
-          objectName: {{ .Values.azureKeyVault.secretName }}
-          objectType: secret
-    tenantId: {{ .Values.azureKeyVault.tenantId | quote }}
-{{- end }}
-```
-
----
-
-## ⚙️ Example `values.yaml` per Environment
-
-### `gitops/microservices/microservice-1/dev/values.yaml`
-
-```yaml
-image:
-  repository: myacr.azurecr.io/microservice-1
-  tag: dev-latest
-
-azureKeyVault:
-  enabled: true
-  name: my-dev-keyvault
-  tenantId: "00000000-0000-0000-0000-000000000000"
-  userAssignedIdentityID: "11111111-1111-1111-1111-111111111111"
-  secretName: "db-connection-string"
-```
-
-### `gitops/microservices/microservice-1/prod/values.yaml`
-
-```yaml
-image:
-  repository: myacr.azurecr.io/microservice-1
-  tag: prod-latest
-
-azureKeyVault:
-  enabled: true
-  name: my-prod-keyvault
-  tenantId: "00000000-0000-0000-0000-000000000000"
-  userAssignedIdentityID: "22222222-2222-2222-2222-222222222222"
-  secretName: "db-connection-string"
-```
-
----
-
-✅ Exactly — your understanding is **spot on**.
-Right now your **SecretProviderClass** exists, but since you haven’t added the **CSI volume mount in your Deployment**, ArgoCD syncs the resource, but the secrets never get projected into the pod → which is why `/mnt/secrets-store/` is missing inside the container.
-
-So yes, the **missing link** is in `deployment.yaml`.
-
----
-
-### 🔹 How it ties into your GitOps structure
-
-In your **Helm chart (`charts/app/templates/deployment.yaml`)**, you need to conditionally mount the secrets volume whenever `azureKeyVault.enabled=true`.
-
----
-
-## 🛠 `charts/app/templates/deployment.yaml`
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ include "app.fullname" . }}
-  labels:
-    app: {{ include "app.name" . }}
-spec:
-  replicas: {{ .Values.replicaCount }}
-  selector:
-    matchLabels:
-      app: {{ include "app.name" . }}
-  template:
-    metadata:
-      labels:
-        app: {{ include "app.name" . }}
-    spec:
-      containers:
-        - name: {{ include "app.name" . }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 8080
-          {{- if .Values.azureKeyVault.enabled }}
-          volumeMounts:
-            - name: secrets-store
-              mountPath: /mnt/secrets-store
-              readOnly: true
-          {{- end }}
-      {{- if .Values.azureKeyVault.enabled }}
-      volumes:
-        - name: secrets-store
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: {{ include "app.fullname" . }}-akv
-      {{- end }}
-```
-
----
-
-### 🔹 Now with your example
-
-* When `azureKeyVault.enabled: true` in `values.yaml`, your pod gets:
-
-  * `/mnt/secrets-store/` populated with Key Vault secrets as **files**
-* When `azureKeyVault.enabled: false`, no CSI volume is injected → so deployment works without Key Vault.
-
----
-
-### 🔹 Optional: Sync to Kubernetes Secret
-
-If you also want **ENV variables** support → extend `secretproviderclass.yaml` with `secretObjects`. Then in `deployment.yaml`, you can map to `envFrom.secretRef`.
-
----
-
-👉 So yes:
-
-* `secretproviderclass.yaml` = defines how to pull from Key Vault.
-* `deployment.yaml` = actually mounts it into your pod.
-* ArgoCD will sync both since they’re part of the same Helm chart.
-
----
-
-Do you want me to extend your **Helm chart skeleton** so that it supports **both file mount + Kubernetes Secret sync** (so microservices can choose whichever way they want via `values.yaml`)?
+  dns-record:
+    needs: argocd-setup
+    uses: ./.github/workflows/dns-record.yml
+    with:
+      ingress_ip: ${{ needs.argocd-setup.outputs.ingress_ip }}
 
 
-charts/namespace/Chart.yaml
-apiVersion: v2
-name: namespace
-description: A reusable Helm chart to create Kubernetes namespaces
-type: application
-version: 0.1.0
-appVersion: "1.0"
+step2.yml
+
+name: ArgoCD Setup
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+    outputs:
+      ingress_ip:
+        description: "Ingress IP from ArgoCD setup"
+        value: ${{ jobs.argocd-setup.outputs.ingress_ip }}
+
+jobs:
+  argocd-setup:
+    runs-on: ubuntu-latest
+    outputs:
+      ingress_ip: ${{ steps.get_ip.outputs.ingress_ip }}
+    steps:
+      - name: Hardcode Ingress IP
+        id: get_ip
+        run: echo "ingress_ip=1.2.3.4" >> $GITHUB_OUTPUT
 
 
-Example environments/dev-values.yaml
-namespace:
-  name: app-dev
-  labels:
-    env: dev
-    owner: dev-team
-    project: payments
+step3.yml
+name: DNS Record
 
+on:
+  workflow_call:
+    inputs:
+      ingress_ip:
+        required: true
+        type: string
 
+jobs:
+  dns-record:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show Ingress IP
+        run: echo "Ingress IP received = ${{ inputs.ingress_ip }}"
 
-charts/namespace/templates/namespace.yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: {{ .Values.namespace.name }}
-  labels:
-    {{- if .Values.namespace.labels }}
-    {{- toYaml .Values.namespace.labels | nindent 4 }}
-    {{- end }}
-  annotations:
-    {{- if .Values.namespace.annotations }}
-    {{- toYaml .Values.namespace.annotations | nindent 4 }}
-    {{- end }}
