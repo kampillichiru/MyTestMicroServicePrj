@@ -1,63 +1,37 @@
-step1.yml
-
-name: Infra Setup
-
-on:
-  workflow_dispatch:
-
-jobs:
-  argocd-setup:
-    uses: ./.github/workflows/argocd-setup.yml
-    with:
-      environment: dev
-
-  dns-record:
-    needs: argocd-setup
-    uses: ./.github/workflows/dns-record.yml
-    with:
-      ingress_ip: ${{ needs.argocd-setup.outputs.ingress_ip }}
-
-
-step2.yml
-
-name: ArgoCD Setup
-
-on:
-  workflow_call:
-    inputs:
-      environment:
-        required: true
-        type: string
-    outputs:
-      ingress_ip:
-        description: "Ingress IP from ArgoCD setup"
-        value: ${{ jobs.argocd-setup.outputs.ingress_ip }}
-
-jobs:
-  argocd-setup:
-    runs-on: ubuntu-latest
-    outputs:
-      ingress_ip: ${{ steps.get_ip.outputs.ingress_ip }}
-    steps:
-      - name: Hardcode Ingress IP
-        id: get_ip
-        run: echo "ingress_ip=1.2.3.4" >> $GITHUB_OUTPUT
-
-
-step3.yml
-name: DNS Record
-
-on:
-  workflow_call:
-    inputs:
-      ingress_ip:
-        required: true
-        type: string
-
-jobs:
-  dns-record:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Show Ingress IP
-        run: echo "Ingress IP received = ${{ inputs.ingress_ip }}"
-
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/your-org/app-gitops.git
+        revision: main
+        directories:
+          - path: microservices/*/*
+          - path: frontends/*/*
+  template:
+    metadata:
+      # Example: svc-a-dev OR fe-a-dev
+      name: '{{path.basename}}-{{path.dirname}}'
+      labels:
+        app-type: '{{path[0]}}'  # "microservices" or "frontends"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/your-org/app-gitops.git
+        targetRevision: main
+        path: charts/app-chart
+        helm:
+          valueFiles:
+            - ../../{{path}}
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{path.basename}}-{{path.dirname}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
