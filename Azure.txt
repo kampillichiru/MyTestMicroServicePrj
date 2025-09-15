@@ -35,3 +35,79 @@ spec:
           selfHeal: true
         syncOptions:
           - CreateNamespace=true
+
+
+
+name: Update GitOps
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_type:
+        description: "Application type (microservice or frontend)"
+        required: true
+        type: choice
+        options:
+          - microservices
+          - frontends
+      service_name:
+        description: "Service or frontend name (e.g. svc-a, fe-ui)"
+        required: true
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - tst
+          - uat
+          - prod
+      version:
+        description: "Release version to deploy"
+        required: true
+
+jobs:
+  update-gitops:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: your-org/app-gitops
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update values.yaml
+        run: |
+          FILE="microservices/${{ github.event.inputs.service_name }}/${{ github.event.inputs.environment }}/values.yaml"
+          if [ "${{ github.event.inputs.app_type }}" = "frontends" ]; then
+            FILE="frontends/${{ github.event.inputs.service_name }}/${{ github.event.inputs.environment }}/values.yaml"
+          fi
+
+          echo "🔎 Updating $FILE"
+
+          # Ensure directory exists (auto-create new service if missing)
+          mkdir -p $(dirname $FILE)
+          if [ ! -f "$FILE" ]; then
+            echo "Creating new values.yaml for ${{ github.event.inputs.service_name }} in ${{ github.event.inputs.environment }}"
+            cat <<EOF > $FILE
+service:
+  name: ${{ github.event.inputs.service_name }}
+  version: ${{ github.event.inputs.version }}
+  replicas: 1
+resources:
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+EOF
+          else
+            yq e -i ".service.version = \"${{ github.event.inputs.version }}\"" $FILE
+          fi
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Release ${{ github.event.inputs.service_name }}:${{ github.event.inputs.version }} to ${{ github.event.inputs.environment }}"
+          git push origin main
+
