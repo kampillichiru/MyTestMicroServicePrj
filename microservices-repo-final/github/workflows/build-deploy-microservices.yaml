@@ -1,0 +1,53 @@
+name: Build and Deploy Microservices
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy (dev, qa, prod)'
+        required: true
+        default: dev
+      service_type:
+        description: 'Service type (backend, frontend)'
+        required: true
+        default: backend
+      service_name:
+        description: 'Service name (e.g. orders, payments)'
+        required: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to ACR
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
+          username: ${{ secrets.AZURE_CLIENT_ID }}
+          password: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Build and push image
+        run: |
+          IMAGE=${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ github.event.inputs.service_type }}-${{ github.event.inputs.service_name }}
+          TAG=sha-${GITHUB_SHA::8}
+          docker build -t $IMAGE:$TAG ./services/${{ github.event.inputs.service_type }}-${{ github.event.inputs.service_name }}
+          docker push $IMAGE:$TAG
+
+      - name: Update Helm values
+        run: |
+          FILE=environments/${{ github.event.inputs.environment }}/services/${{ github.event.inputs.service_type }}-${{ github.event.inputs.service_name }}/values.yaml
+          yq -i '.image.tag = "sha-${GITHUB_SHA::8}"' $FILE
+
+      - name: Commit changes
+        run: |
+          git config user.email "ci-bot@github.com"
+          git config user.name "ci-bot"
+          git add environments/${{ github.event.inputs.environment }}/services/${{ github.event.inputs.service_type }}-${{ github.event.inputs.service_name }}/values.yaml
+          git commit -m "Update image for ${{ github.event.inputs.service_type }}-${{ github.event.inputs.service_name }}"
+          git push
