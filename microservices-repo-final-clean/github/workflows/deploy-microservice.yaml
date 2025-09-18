@@ -1,0 +1,55 @@
+name: Deploy Microservice
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_name:
+        required: true
+        description: "Name of the microservice"
+      type:
+        required: true
+        description: "backend or frontend"
+        default: "backend"
+      environment:
+        required: true
+        description: "dev/uat/prod"
+        default: "dev"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set variables
+        run: |
+          echo "SERVICE_NAME=${{ github.event.inputs.service_name }}" >> $GITHUB_ENV
+          echo "TYPE=${{ github.event.inputs.type }}" >> $GITHUB_ENV
+          echo "ENVIRONMENT=${{ github.event.inputs.environment }}" >> $GITHUB_ENV
+
+      - name: Create default values.yaml if missing
+        run: |
+          TEMPLATE=templates/default-values.yaml
+          TARGET=environments/${{ github.event.inputs.environment }}/services/${{ github.event.inputs.service_name }}/values.yaml
+          mkdir -p "$(dirname "$TARGET")"
+          if [ ! -f "$TARGET" ]; then
+            sed -e "s/{{SERVICE_NAME}}/${{ github.event.inputs.service_name }}/g"                 -e "s/{{ENVIRONMENT}}/${{ github.event.inputs.environment }}/g"                 "$TEMPLATE" > "$TARGET"
+            git add "$TARGET"
+            git commit -m "chore: add default values.yaml for ${{ github.event.inputs.service_name }}"
+            git push
+          fi
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE=myregistry.io/${{ github.event.inputs.service_name }}
+          TAG=${GITHUB_SHA}
+          docker build ./services/${{ github.event.inputs.service_name }} -t $IMAGE:$TAG
+          echo ${{ secrets.REGISTRY_PASSWORD }} | docker login myregistry.io -u ${{ secrets.REGISTRY_USER }} --password-stdin
+          docker push $IMAGE:$TAG
+
+      - name: Update values.yaml with new tag
+        run: |
+          yq e -i ".image.tag = "${TAG}"" environments/${{ github.event.inputs.environment }}/services/${{ github.event.inputs.service_name }}/values.yaml
+          git add environments/${{ github.event.inputs.environment }}/services/${{ github.event.inputs.service_name }}/values.yaml
+          git commit -m "chore: update image tag for ${{ github.event.inputs.service_name }} to ${TAG}"
+          git push

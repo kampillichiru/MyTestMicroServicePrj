@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: backend-applications-dev
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/org/microservices-repo.git
+        revision: main
+        directories:
+          - path: environments/dev/services/backend-*
+  template:
+    metadata:
+      name: '{{path.basename}}-dev'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/microservices-repo.git
+        targetRevision: main
+        path: helm/backend
+        helm:
+          valueFiles:
+            - ../../{{path}}/values.yaml
+      destination:
+        namespace: 'dev'
+        server: https://kubernetes.default.svc
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
