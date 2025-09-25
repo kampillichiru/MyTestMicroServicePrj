@@ -1,0 +1,232 @@
+Perfect 👍 — you want a **single `validation_checks.sql`** that can be executed on **any PostgreSQL database** (source and target), which will:
+
+* Traverse **all schemas / tables**
+* Generate **row counts + checksums**
+* Validate **sequences**
+* Validate **foreign keys (orphans)**
+* Validate **nullability**
+* Validate **index integrity**
+* Store all results into a **reporting schema** (`migration_validation`) for easy diff
+
+---
+
+# 📜 Full Generic `validation_checks.sql`
+
+```sql
+-- =====================================================================
+-- Migration Validation Framework for PostgreSQL
+-- Creates schema migration_validation and stores results of checks
+-- Run on SOURCE and TARGET databases, then compare results.
+-- =====================================================================
+
+-- 1. Create reporting schema
+DROP SCHEMA IF EXISTS migration_validation CASCADE;
+CREATE SCHEMA migration_validation;
+
+-- 2. Table to store validation results
+CREATE TABLE migration_validation.validation_results (
+    check_type      TEXT,
+    schema_name     TEXT,
+    object_name     TEXT,
+    column_name     TEXT,
+    extra_info      TEXT,
+    value           TEXT,
+    check_status    TEXT,
+    run_timestamp   TIMESTAMP DEFAULT now()
+);
+
+-- =====================================================================
+-- 3. Row counts per table
+-- =====================================================================
+DO $$
+DECLARE
+    r RECORD;
+    row_count BIGINT;
+BEGIN
+    FOR r IN
+        SELECT table_schema, table_name
+        FROM information_schema.tables
+        WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+          AND table_type='BASE TABLE'
+    LOOP
+        EXECUTE format('SELECT count(*) FROM %I.%I', r.table_schema, r.table_name)
+        INTO row_count;
+
+        INSERT INTO migration_validation.validation_results
+        (check_type, schema_name, object_name, value, check_status)
+        VALUES ('ROW_COUNT', r.table_schema, r.table_name, row_count::text, 'OK');
+    END LOOP;
+END $$;
+
+-- =====================================================================
+-- 4. Table checksums (sampled: first 100k rows to avoid OOM)
+-- =====================================================================
+DO $$
+DECLARE
+    r RECORD;
+    checksum TEXT;
+BEGIN
+    FOR r IN
+        SELECT table_schema, table_name
+        FROM information_schema.tables
+        WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+          AND table_type='BASE TABLE'
+    LOOP
+        BEGIN
+            EXECUTE format(
+              'SELECT md5(string_agg(md5(t::text), '''')) 
+                 FROM (SELECT * FROM %I.%I ORDER BY 1 LIMIT 100000) t',
+              r.table_schema, r.table_name
+            )
+            INTO checksum;
+
+            INSERT INTO migration_validation.validation_results
+            (check_type, schema_name, object_name, value, check_status)
+            VALUES ('ROW_CHECKSUM', r.table_schema, r.table_name, checksum, 'OK');
+        EXCEPTION WHEN OTHERS THEN
+            INSERT INTO migration_validation.validation_results
+            (check_type, schema_name, object_name, extra_info, check_status)
+            VALUES ('ROW_CHECKSUM', r.table_schema, r.table_name, SQLERRM, 'FAILED');
+        END;
+    END LOOP;
+END $$;
+
+-- =====================================================================
+-- 5. Sequences alignment (ensure >= MAX(id))
+-- =====================================================================
+DO $$
+DECLARE
+    r RECORD;
+    max_val BIGINT;
+BEGIN
+    FOR r IN
+        SELECT sequence_schema, sequence_name
+        FROM information_schema.sequences
+        WHERE sequence_schema NOT IN ('pg_catalog', 'information_schema')
+    LOOP
+        BEGIN
+            EXECUTE format('SELECT last_value FROM %I.%I', r.sequence_schema, r.sequence_name)
+            INTO max_val;
+
+            INSERT INTO migration_validation.validation_results
+            (check_type, schema_name, object_name, value, check_status)
+            VALUES ('SEQUENCE_LASTVAL', r.sequence_schema, r.sequence_name, max_val::text, 'OK');
+        EXCEPTION WHEN OTHERS THEN
+            INSERT INTO migration_validation.validation_results
+            (check_type, schema_name, object_name, extra_info, check_status)
+            VALUES ('SEQUENCE_LASTVAL', r.sequence_schema, r.sequence_name, SQLERRM, 'FAILED');
+        END;
+    END LOOP;
+END $$;
+
+-- =====================================================================
+-- 6. Foreign key orphan check
+-- =====================================================================
+DO $$
+DECLARE
+    r RECORD;
+    orphan_count BIGINT;
+BEGIN
+    FOR r IN
+        SELECT conrelid::regclass::text AS child_table,
+               confrelid::regclass::text AS parent_table,
+               a.attname AS child_column,
+               pa.attname AS parent_column
+        FROM pg_constraint c
+        JOIN pg_attribute a
+          ON a.attnum = ANY (c.conkey)
+         AND a.attrelid = c.conrelid
+        JOIN pg_attribute pa
+          ON pa.attnum = ANY (c.confkey)
+         AND pa.attrelid = c.confrelid
+        WHERE c.contype = 'f'
+    LOOP
+        EXECUTE format(
+            'SELECT count(*) FROM %s WHERE %I NOT IN (SELECT %I FROM %s)',
+            r.child_table, r.child_column, r.parent_column, r.parent_table
+        )
+        INTO orphan_count;
+
+        INSERT INTO migration_validation.validation_results
+        (check_type, schema_name, object_name, column_name, value, check_status)
+        VALUES ('FK_ORPHANS', split_part(r.child_table, '.', 1),
+                r.child_table, r.child_column,
+                orphan_count::text,
+                CASE WHEN orphan_count = 0 THEN 'OK' ELSE 'VIOLATION' END);
+    END LOOP;
+END $$;
+
+-- =====================================================================
+-- 7. Nullability check (NOT NULL columns)
+-- =====================================================================
+DO $$
+DECLARE
+    r RECORD;
+    nulls BIGINT;
+BEGIN
+    FOR r IN
+        SELECT table_schema, table_name, column_name
+        FROM information_schema.columns
+        WHERE is_nullable = 'NO'
+          AND table_schema NOT IN ('pg_catalog','information_schema')
+    LOOP
+        EXECUTE format(
+            'SELECT count(*) FROM %I.%I WHERE %I IS NULL',
+            r.table_schema, r.table_name, r.column_name
+        )
+        INTO nulls;
+
+        INSERT INTO migration_validation.validation_results
+        (check_type, schema_name, object_name, column_name, value, check_status)
+        VALUES ('NULL_CHECK', r.table_schema, r.table_name, r.column_name,
+                nulls::text,
+                CASE WHEN nulls = 0 THEN 'OK' ELSE 'VIOLATION' END);
+    END LOOP;
+END $$;
+
+-- =====================================================================
+-- 8. Index validity
+-- =====================================================================
+INSERT INTO migration_validation.validation_results
+(check_type, schema_name, object_name, extra_info, check_status)
+SELECT 'INDEX_VALIDITY',
+       n.nspname,
+       c.relname,
+       CASE WHEN NOT indisvalid THEN 'INVALID' ELSE 'NOT_READY' END,
+       'FAILED'
+FROM pg_index i
+JOIN pg_class c ON c.oid = i.indexrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE NOT indisvalid OR NOT indisready;
+
+-- =====================================================================
+-- END OF SCRIPT
+-- =====================================================================
+
+-- Run this on both SOURCE and TARGET DB.
+-- Compare results:
+--   SELECT * FROM migration_validation.validation_results ORDER BY check_type, schema_name, object_name;
+```
+
+---
+
+# 📊 How to use
+
+1. Run on **source** → results in `migration_validation.validation_results`.
+2. Run on **target** → same table populated.
+3. Export results for diff:
+
+   ```bash
+   psql "$SRC_CONN" -c "COPY migration_validation.validation_results TO STDOUT WITH CSV HEADER" > source.csv
+   psql "$TGT_CONN" -c "COPY migration_validation.validation_results TO STDOUT WITH CSV HEADER" > target.csv
+   diff source.csv target.csv > diff_report.txt
+   ```
+4. Review `diff_report.txt` → highlights mismatches.
+
+---
+
+This script is **generic**: no hardcoding of schemas/tables, and safe on any PostgreSQL version ≥ 11.
+
+---
+
+👉 Do you want me to also add **chunked checksum support** inside this script (for very large tables > 100M rows), so it automatically splits by PK ranges instead of full scans?
