@@ -1,304 +1,87 @@
-### ✅ **Best Approach for Single vs. Multiple PDF File Downloads**
-
-When designing a REST API for **PDF file downloads**, you have two main approaches:
-
----
-
-## **1️⃣ Single Unified Endpoint (Preferred for Simplicity & Clarity)**
-
-* **Endpoint:** `GET /documents/download`
-* **Query Parameter:** `ids` → Comma-separated list of IDs (`?ids=1,2,3`)
-* **Behavior:**
-
-  * If only **one ID** is provided → Stream the single PDF file.
-  * If **multiple IDs** are provided → Stream a ZIP file containing all PDFs.
-
-### **Advantages**:
-
-1. **Cleaner API Design:** One endpoint handles all download logic.
-2. **Simpler Frontend Logic:** Angular or frontend app only needs one call.
-3. **Better Caching and Routing:** No need to differentiate between `/single` and `/multiple`.
-4. **Less Code Duplication:** Reuse of streaming logic.
-
-### **Disadvantages**:
-
-1. Slightly more conditional logic in the controller to handle single vs. multiple.
-
----
-
-## **2️⃣ Separate Endpoints (Preferred for Explicit Design)**
-
-* **Endpoint 1:** `GET /documents/download/{id}` → For single document
-* **Endpoint 2:** `POST /documents/download` → For multiple documents, with IDs in the body.
-
-### **Advantages**:
-
-1. **Explicit Clarity:** Two different use cases are clearly separated.
-2. **Granular Control:** You can apply specific configurations for single vs. multiple.
-
-### **Disadvantages**:
-
-1. **More Endpoints to Manage:** Increases API surface.
-2. **Duplicate Logic:** Streaming logic must be managed separately for single and multiple.
-3. **Angular Logic Needs Switching:** UI must know which endpoint to call.
-
----
-
-## **3️⃣ Recommended Approach for Enterprise: Single Endpoint with Conditional Logic**
-
-I recommend this structure for your **Spring Boot Controller**:
-
-```java
-@GetMapping("/documents/download")
-public ResponseEntity<?> downloadDocuments(@RequestParam List<Long> ids) {
-    if (ids.size() == 1) {
-        // 👉 Single Document Download
-        Long id = ids.get(0);
-        InputStream documentStream = documentService.getDocumentAsStream(id);
-
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=document-" + id + ".pdf")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(new InputStreamResource(documentStream));
-    } else {
-        // 👉 Multiple Document Download (Zipped)
-        StreamingResponseBody stream = outputStream -> {
-            try (ZipOutputStream zipOut = new ZipOutputStream(outputStream)) {
-                for (Long id : ids) {
-                    InputStream documentStream = documentService.getDocumentAsStream(id);
-                    ZipEntry zipEntry = new ZipEntry("document-" + id + ".pdf");
-                    zipOut.putNextEntry(zipEntry);
-                    documentStream.transferTo(zipOut);
-                    documentStream.close();
-                    zipOut.closeEntry();
-                }
-                zipOut.finish();
-            } catch (IOException e) {
-                throw new RuntimeException("Error while streaming documents", e);
-            }
-        };
-
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=documents.zip")
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(stream);
-    }
-}
-```
-
----
-
-### **🌟 Frontend (Angular) Integration**
-
-**Single Download:**
-
-```typescript
-downloadSingle(id: number) {
-  this.http.get(`/api/documents/download`, {
-    params: { ids: id.toString() },
-    responseType: 'blob',
-  }).subscribe((response) => {
-    const blob = new Blob([response], { type: 'application/pdf' });
-    const link = document.createElement('a');
-    link.href = window.URL.createObjectURL(blob);
-    link.download = `document-${id}.pdf`;
-    link.click();
-  });
-}
-```
-
-**Multiple Download:**
-
-```typescript
-downloadMultiple(ids: number[]) {
-  this.http.get(`/api/documents/download`, {
-    params: { ids: ids.join(',') },
-    responseType: 'blob',
-  }).subscribe((response) => {
-    const blob = new Blob([response], { type: 'application/zip' });
-    const link = document.createElement('a');
-    link.href = window.URL.createObjectURL(blob);
-    link.download = `documents.zip`;
-    link.click();
-  });
-}
-```
-
----
-
-
-
-
-That is an **excellent question**! Yes, having the **loop logic in the controller** violates the **Single Responsibility Principle (SRP)** and adds unnecessary complexity. We can **move it to the service layer** and make it **generic and reusable**.
-
----
-
-## ✅ **Goal:**
-
-* **Remove loop logic** from the controller.
-* Make the **service layer** handle both:
-
-  * **Single file streaming**.
-  * **Multiple file streaming with ZIP compression**.
-
----
-
-## 🏷️ **Optimized Service Layer (Generic and Clean)**
-
-We create a service that handles both single and multiple downloads with a generic approach:
-
-```java
-package com.example.documentservice.service;
-
-import com.example.documentservice.model.Document;
-import com.example.documentservice.repository.DocumentRepository;
-import jakarta.persistence.EntityNotFoundException;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
-import java.io.*;
-import java.util.List;
-import java.util.function.Supplier;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
-
-@Service
-@RequiredArgsConstructor
-public class FileStreamService {
-
-    private final DocumentRepository documentRepository;
-
-    /**
-     * Get a single document as an InputStream
-     */
-    public Supplier<InputStream> getFileStream(Long id) {
-        return () -> {
-            Document document = documentRepository.findById(id)
-                    .orElseThrow(() -> new EntityNotFoundException("Document with ID " + id + " not found"));
-            return new ByteArrayInputStream(document.getFileData());
-        };
-    }
-
-    /**
-     * Get multiple documents as a Zipped InputStream
-     */
-    public Supplier<InputStream> getZippedFileStream(List<Long> ids) {
-        return () -> {
-            try {
-                ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-                try (ZipOutputStream zipOut = new ZipOutputStream(byteArrayOutputStream)) {
-                    for (Long id : ids) {
-                        Document document = documentRepository.findById(id)
-                                .orElseThrow(() -> new EntityNotFoundException("Document with ID " + id + " not found"));
-
-                        // Create a new entry for each document
-                        ZipEntry zipEntry = new ZipEntry(document.getFileName());
-                        zipOut.putNextEntry(zipEntry);
-
-                        // Write to ZIP
-                        zipOut.write(document.getFileData());
-                        zipOut.closeEntry();
-                    }
-                    zipOut.finish();
-                }
-                return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
-            } catch (IOException e) {
-                throw new RuntimeException("Error while creating zip stream", e);
-            }
-        };
-    }
-}
-```
-
----
-
-## 🚀 **Controller Layer (Clean and Minimal)**
-
-We remove the **loop logic** entirely from the controller:
-
-```java
-package com.example.documentservice.controller;
-
-import com.example.documentservice.service.FileStreamService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.InputStreamResource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.io.InputStream;
-import java.util.List;
-
-@RestController
-@RequestMapping("/api/documents")
-@RequiredArgsConstructor
-public class DocumentController {
-
-    private final FileStreamService fileStreamService;
-
-    @GetMapping("/download")
-    public ResponseEntity<?> downloadDocuments(@RequestParam List<Long> ids) {
-        if (ids.size() == 1) {
-            // 👉 Single Document Download
-            InputStream documentStream = fileStreamService.getFileStream(ids.get(0)).get();
-
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=document-" + ids.get(0) + ".pdf")
-                    .contentType(MediaType.APPLICATION_PDF)
-                    .body(new InputStreamResource(documentStream));
-        } else {
-            // 👉 Multiple Document Download (Zipped)
-            InputStream zipStream = fileStreamService.getZippedFileStream(ids).get();
-
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=documents.zip")
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(new InputStreamResource(zipStream));
-        }
-    }
-}
-```
-
----
-
-## ✨ **Benefits of This Approach**
-
-1. **Single Responsibility Principle (SRP)**
-
-   * Controller just **calls the service** → No loop or logic inside.
-   * Service handles **all data fetching and stream creation**.
-
-2. **Reusability**
-
-   * `getFileStream` → For single documents.
-   * `getZippedFileStream` → For multiple documents.
-
-3. **Clean Controller Logic**
-
-   * Controller is just a routing layer → No business logic inside.
-
-4. **Efficient Streaming**
-
-   * Files are streamed as they are fetched.
-   * ZIP files are created on the fly, not fully loaded into memory.
-
-5. **Generic Logic**
-
-   * Service methods are now generic: you can easily extend to other file types (`png`, `txt`, etc.).
-
----
-
-## 💡 **Next Steps**
-
-Would you like me to:
-
-1. Write **Unit Tests** for `FileStreamService` to ensure proper stream creation?
-2. Implement the **Angular Frontend** with options to:
-
-   * Download a single document.
-   * Select multiple documents and download as ZIP.
-
-That will complete the full stack solution. Do you want me to proceed?
-
+name: Release Request
+description: Submit a request to release selected microservices
+title: "Release Request - [VERSION]"
+labels: ["release-request"]
+body:
+  - type: input
+    attributes:
+      label: Version
+      description: "Enter the release version (e.g., 1.0.8)"
+      placeholder: "1.0.8"
+      required: true
+      value: ""
+  - type: dropdown
+    attributes:
+      label: Environment
+      description: "Select the environment"
+      options:
+        - uat
+        - prod
+      required: true
+  - type: checkboxes
+    attributes:
+      label: "Select services for this release"
+      options:
+        - user-service
+        - order-service
+        - payment-service
+        - inventory-service
+        - frontend
+      required: true
+
+
+
+
+name: Release Microservices
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  release:
+    if: github.event.issue.labels.*.name contains 'release-request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Parse issue data
+        id: parse
+        run: |
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          echo "ISSUE_BODY<<EOF" >> $GITHUB_ENV
+          echo "$ISSUE_BODY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(echo "$ISSUE_BODY" | grep -oP '(?<=Version: ).*')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Extract environment
+        id: env
+        run: |
+          ENVIRONMENT=$(echo "$ISSUE_BODY" | grep -oP '(?<=Environment: ).*')
+          echo "ENVIRONMENT=$ENVIRONMENT" >> $GITHUB_ENV
+
+      - name: Extract services
+        id: services
+        run: |
+          SERVICES=$(echo "$ISSUE_BODY" | grep -oP '(?<=Select services for this release: ).*' | tr ',' '\n')
+          echo "SERVICES=$SERVICES" >> $GITHUB_ENV
+
+      - name: Update manifest
+        run: |
+          MANIFEST="./manifests/$ENVIRONMENT/release-manifest.yaml"
+          cp ./manifests/template-manifest.yaml $MANIFEST
+          for svc in $SERVICES; do
+            yq e -i "(.services[] | select(.name==\"$svc\")).image = \"myorg/$svc:$VERSION\"" $MANIFEST
+          done
+
+      - name: Deploy via ArgoCD
+        run: |
+          argocd app sync my-app --local $MANIFEST
 
