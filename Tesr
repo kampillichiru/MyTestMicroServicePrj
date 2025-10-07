@@ -1,87 +1,65 @@
-name: Release Request
-description: Submit a request to release selected microservices
-title: "Release Request - [VERSION]"
-labels: ["release-request"]
-body:
-  - type: input
-    attributes:
-      label: Version
-      description: "Enter the release version (e.g., 1.0.8)"
-      placeholder: "1.0.8"
-      required: true
-      value: ""
-  - type: dropdown
-    attributes:
-      label: Environment
-      description: "Select the environment"
-      options:
-        - uat
-        - prod
-      required: true
-  - type: checkboxes
-    attributes:
-      label: "Select services for this release"
-      options:
-        - user-service
-        - order-service
-        - payment-service
-        - inventory-service
-        - frontend
-      required: true
-
-
-
-
-name: Release Microservices
+name: Enterprise Release Orchestrator
 
 on:
-  issues:
-    types: [opened]
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: "Release identifier (e.g., 06-oct-2025)"
+        required: true
+        type: string
+      services:
+        description: "Comma-separated service names"
+        required: true
+        type: string
 
 jobs:
-  release:
-    if: github.event.issue.labels.*.name contains 'release-request'
+  prepare:
     runs-on: ubuntu-latest
-
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Checkout repo
+      - id: set-matrix
+        run: |
+          services="${{ github.event.inputs.services }}"
+          arr="["
+          IFS=',' read -ra svc <<< "$services"
+          for s in "${svc[@]}"; do
+            arr="$arr\"${s// /}\","
+          done
+          arr="${arr%,}]"
+          echo "matrix=$arr" >> $GITHUB_OUTPUT
+
+  build:
+    needs: prepare
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      fail-fast: false
+    uses: ./.github/workflows/service-build.yml
+    with:
+      service_name: ${{ matrix.service }}
+      current_version: "1.0.0" # could come from a file or API
+
+  finalize:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout orchestrator repo
         uses: actions/checkout@v4
 
-      - name: Parse issue data
-        id: parse
+      - name: Generate release manifest
         run: |
-          ISSUE_BODY="${{ github.event.issue.body }}"
-          echo "ISSUE_BODY<<EOF" >> $GITHUB_ENV
-          echo "$ISSUE_BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-      - name: Extract version
-        id: version
-        run: |
-          VERSION=$(echo "$ISSUE_BODY" | grep -oP '(?<=Version: ).*')
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-      - name: Extract environment
-        id: env
-        run: |
-          ENVIRONMENT=$(echo "$ISSUE_BODY" | grep -oP '(?<=Environment: ).*')
-          echo "ENVIRONMENT=$ENVIRONMENT" >> $GITHUB_ENV
-
-      - name: Extract services
-        id: services
-        run: |
-          SERVICES=$(echo "$ISSUE_BODY" | grep -oP '(?<=Select services for this release: ).*' | tr ',' '\n')
-          echo "SERVICES=$SERVICES" >> $GITHUB_ENV
-
-      - name: Update manifest
-        run: |
-          MANIFEST="./manifests/$ENVIRONMENT/release-manifest.yaml"
-          cp ./manifests/template-manifest.yaml $MANIFEST
-          for svc in $SERVICES; do
-            yq e -i "(.services[] | select(.name==\"$svc\")).image = \"myorg/$svc:$VERSION\"" $MANIFEST
+          echo "release_id: ${{ github.event.inputs.release_id }}" > release-${{ github.event.inputs.release_id }}.yaml
+          echo "services:" >> release-${{ github.event.inputs.release_id }}.yaml
+          for service in ${{ github.event.inputs.services }}; do
+            echo "  - name: $service" >> release-${{ github.event.inputs.release_id }}.yaml
+            echo "    version: <to-be-retrieved>" >> release-${{ github.event.inputs.release_id }}.yaml
           done
 
-      - name: Deploy via ArgoCD
+      - name: Commit and push release manifest
         run: |
-          argocd app sync my-app --local $MANIFEST
-
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add release-${{ github.event.inputs.release_id }}.yaml
+          git commit -m "Generated release manifest for ${{ github.event.inputs.release_id }}"
+          git push
