@@ -1,42 +1,195 @@
-apiVersion: argoproj.io/v1alpha1
-kind: ApplicationSet
-metadata:
-  name: elasticsearch-appset
-  namespace: argocd
-spec:
-  generators:
-    - list:
-        elements:
-          - name: dev
-            namespace: my-elasticsearch
-            valuesPath: elasticsearch/dev/values.yaml
-            chartVersion: 1.0.0
-  template:
-    metadata:
-      name: elasticsearch-{{name}}
-    spec:
-      project: default
-      sources:
-        # Source 1: Helm chart from Azure Registry
-        - repoURL: oci://registry.mycompany.azure/come/gm/charts
-          chart: elasticsearch
-          targetRevision: '{{chartVersion}}'
+Perfect 👍 — here’s a **clean, reusable, production-ready GitHub Actions setup** for your **Release Orchestrator** that triggers multiple microservices, passes dynamic inputs (branch, version, environment), and captures their outputs cleanly.
 
-        # Source 2: Git repo containing values.yaml
-        - repoURL: https://github.com/elasticsearch/dev.git
-          targetRevision: main
-          ref: values
+---
 
-      destination:
-        server: https://kubernetes.default.svc
-        namespace: '{{namespace}}'
+## 🧩 Structure Overview
 
-      syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
+You’ll have:
 
-      source:
-        helm:
-          valueFiles:
-            - $values/{{valuesPath}}
+```
+release-orchestrator/
+└── .github/
+    └── workflows/
+        └── orchestrate-releases.yml
+service-a/
+└── .github/
+    └── workflows/
+        └── release.yml
+service-b/
+└── .github/
+    └── workflows/
+        └── release.yml
+...
+```
+
+---
+
+## 🚀 `release-orchestrator/.github/workflows/orchestrate-releases.yml`
+
+This is the **main orchestrator** that loops over services and dispatches release events.
+
+```yaml
+name: Orchestrate Microservice Releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Version to release (e.g., 1.2.3)"
+        required: true
+      release_branch:
+        description: "Branch to release from (e.g., main)"
+        required: true
+        default: "main"
+      environment:
+        description: "Target environment (dev, uat, prod)"
+        required: true
+        default: "uat"
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+    env:
+      ORG: your-org-name
+      SERVICES: "service-a service-b service-c"
+      GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+
+    steps:
+      - name: Log Inputs
+        run: |
+          echo "🔹 Release version: ${{ github.event.inputs.release_version }}"
+          echo "🔹 Branch: ${{ github.event.inputs.release_branch }}"
+          echo "🔹 Environment: ${{ github.event.inputs.environment }}"
+
+      - name: Trigger Releases for Each Service
+        id: trigger
+        run: |
+          release_version="${{ github.event.inputs.release_version }}"
+          release_branch="${{ github.event.inputs.release_branch }}"
+          environment="${{ github.event.inputs.environment }}"
+          results_file="release-results.txt"
+          echo "" > "$results_file"
+
+          for service in $SERVICES; do
+            echo "🚀 Triggering release for $service ..."
+            
+            response=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/$ORG/$service/dispatches \
+              -d "{\"event_type\": \"trigger-release\", \"client_payload\": {
+                \"release_version\": \"$release_version\",
+                \"release_branch\": \"$release_branch\",
+                \"environment\": \"$environment\"
+              }}")
+
+            if [ "$response" = "204" ]; then
+              echo "✅ $service: Triggered successfully" | tee -a "$results_file"
+            else
+              echo "❌ $service: Failed (HTTP $response)" | tee -a "$results_file"
+            fi
+          done
+
+          echo "---- Summary ----"
+          cat "$results_file"
+
+      - name: Upload Release Summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-summary
+          path: release-results.txt
+```
+
+### ✅ Clean Code Highlights
+
+* Uses environment variables for org and token.
+* Loops cleanly through a list of services.
+* Produces a summary file (`release-results.txt`).
+* Uploads results as an artifact for reference.
+* Easy to extend — just add more services to `SERVICES`.
+
+---
+
+## 🧩 `service-a/.github/workflows/release.yml`
+
+This is the **receiver workflow** in each microservice.
+
+```yaml
+name: Microservice Release
+
+on:
+  repository_dispatch:
+    types: [trigger-release]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Print received parameters
+        run: |
+          echo "🔹 Release Version: ${{ github.event.client_payload.release_version }}"
+          echo "🔹 Release Branch:  ${{ github.event.client_payload.release_branch }}"
+          echo "🔹 Environment:     ${{ github.event.client_payload.environment }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.client_payload.release_branch }}
+
+      - name: Build and Release
+        run: |
+          echo "🚀 Running Maven release for version ${{ github.event.client_payload.release_version }}"
+          mvn -B clean deploy -Drevision=${{ github.event.client_payload.release_version }}
+
+      - name: Create Git Tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git tag "v${{ github.event.client_payload.release_version }}"
+          git push origin "v${{ github.event.client_payload.release_version }}"
+
+      - name: Notify Success
+        run: |
+          echo "✅ Release completed for ${{ github.repository }}: version ${{ github.event.client_payload.release_version }}"
+```
+
+---
+
+## 🧩 Optional — Output Collection (Future Enhancement)
+
+If you want to **collect each microservice’s release version** automatically and update a file like `argocd/values.yaml`, you can later:
+
+1. Store the version info in an artifact (each microservice).
+2. The orchestrator can call the GitHub API to fetch those artifacts.
+3. Update the ArgoCD values file programmatically.
+
+That’s a natural next step once triggering is working.
+
+---
+
+## 🧩 Clean Reusability Enhancements
+
+You can make this even cleaner by:
+
+* Moving the service list into a file:
+  `.github/services.txt`
+* Adding retry logic for transient network issues.
+* Using reusable workflows for each release logic (if you need consistent release processes).
+
+---
+
+## ✅ Summary
+
+| File                       | Purpose                                               |
+| -------------------------- | ----------------------------------------------------- |
+| `orchestrate-releases.yml` | Central workflow to trigger all microservice releases |
+| `release.yml`              | Handles the release in each service                   |
+| `release-results.txt`      | Collects status of all triggered releases             |
+| `PAT_TOKEN`                | GitHub token with `repo` + `workflow` scopes          |
+
+---
+
+Would you like me to extend this setup to include **updating `argocd/values.yaml` automatically** once all releases complete?
+That’s the next step after successful orchestration.
